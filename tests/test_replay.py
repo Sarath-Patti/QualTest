@@ -57,7 +57,7 @@ def test_fsm_invalid_transition() -> None:
     assert fsm.current_state == ModemFSMState.IDLE
 
     # HANDOVER_COMPLETE in IDLE is invalid
-    prev, curr, valid = fsm.transition(ProtocolMessage.HANDOVER_COMPLETE)
+    _prev, curr, valid = fsm.transition(ProtocolMessage.HANDOVER_COMPLETE)
     assert valid is False
     assert curr == ModemFSMState.ERROR
 

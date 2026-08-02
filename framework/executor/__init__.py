@@ -2,4 +2,4 @@
 
 from framework.executor.executor import ExecutionConfig, ExecutionResult, TestExecutor
 
-__all__ = ["TestExecutor", "ExecutionConfig", "ExecutionResult"]
+__all__ = ["ExecutionConfig", "ExecutionResult", "TestExecutor"]

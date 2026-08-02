@@ -26,11 +26,11 @@ def generate_reports(summary_source: Any) -> tuple[Path, Path]:
 
 
 __all__ = [
-    "ReportGenerator",
-    "TestReporter",
+    "ExecutionMetrics",
     "ReportFormat",
+    "ReportGenerator",
     "ReportSummary",
     "TestCaseReport",
-    "ExecutionMetrics",
+    "TestReporter",
     "generate_reports",
 ]

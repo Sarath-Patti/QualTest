@@ -181,7 +181,7 @@ class ConcurrentScheduler:
                 execution_status=ValidationState.ERROR,
                 execution_time_ms=exec_ms,
                 worker_id=worker_id,
-                error_message=f"Parser Error: {str(exc)}",
+                error_message=f"Parser Error: {exc!s}",
             )
             logger.error(
                 "Testcase execution failed for '%s' (Parser Error): %s",
@@ -197,7 +197,7 @@ class ConcurrentScheduler:
                 execution_status=ValidationState.ERROR,
                 execution_time_ms=exec_ms,
                 worker_id=worker_id,
-                error_message=f"Worker Error: {str(exc)}",
+                error_message=f"Worker Error: {exc!s}",
             )
             logger.error(
                 "Unexpected worker error executing '%s': %s", task.testcase_name, exc

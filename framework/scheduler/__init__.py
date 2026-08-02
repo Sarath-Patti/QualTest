@@ -30,10 +30,10 @@ def run_all_testcases(
 
 __all__ = [
     "ConcurrentScheduler",
-    "TestScheduler",
-    "ExecutionTask",
     "ExecutionResult",
-    "SchedulerSummary",
+    "ExecutionTask",
     "SchedulePriority",
+    "SchedulerSummary",
+    "TestScheduler",
     "run_all_testcases",
 ]

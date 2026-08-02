@@ -55,7 +55,9 @@ class ReplayLogParser:
             logger.error("Parse failure: %s", msg)
             raise ReplayParseError(msg) from exc
 
-    def _infer_protocol_type(self, msg: ProtocolMessage, raw_proto: str) -> ProtocolType:
+    def _infer_protocol_type(
+        self, msg: ProtocolMessage, raw_proto: str
+    ) -> ProtocolType:
         """Infers ProtocolType from ProtocolMessage or raw string."""
         if msg in (
             ProtocolMessage.RRC_CONNECTION_REQUEST,
@@ -156,9 +158,7 @@ class ReplayLogParser:
                 )
 
             events.append(
-                self._create_event(
-                    str(ts), str(msg), str(proto), str(direction), meta
-                )
+                self._create_event(str(ts), str(msg), str(proto), str(direction), meta)
             )
 
         return events
@@ -185,15 +185,11 @@ class ReplayLogParser:
                     )
 
                 events.append(
-                    self._create_event(
-                        str(ts), str(msg), str(proto), str(direction)
-                    )
+                    self._create_event(str(ts), str(msg), str(proto), str(direction))
                 )
 
         if not events:
-            raise ReplayParseError(
-                f"CSV log file '{path}' contains zero event rows."
-            )
+            raise ReplayParseError(f"CSV log file '{path}' contains zero event rows.")
 
         return events
 
@@ -202,9 +198,7 @@ class ReplayLogParser:
         events: list[ReplayEvent] = []
         with open(path, encoding="utf-8") as f:
             lines = [
-                line.strip()
-                for line in f
-                if line.strip() and not line.startswith("#")
+                line.strip() for line in f if line.strip() and not line.startswith("#")
             ]
 
         if not lines:
@@ -217,8 +211,6 @@ class ReplayLogParser:
             elif len(parts) == 2:
                 events.append(self._create_event(parts[0], parts[1]))
             elif len(parts) >= 3:
-                events.append(
-                    self._create_event(parts[0], parts[1], parts[2])
-                )
+                events.append(self._create_event(parts[0], parts[1], parts[2]))
 
         return events

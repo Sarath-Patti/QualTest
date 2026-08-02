@@ -72,7 +72,7 @@ class JSONLoader:
             logger.error("Validation failure: %s", msg)
             raise JSONParseError(msg) from exc
         except Exception as exc:
-            msg = f"Failed to read testcase file {path}: {str(exc)}"
+            msg = f"Failed to read testcase file {path}: {exc!s}"
             logger.error("Validation failure: %s", msg)
             raise MissingTestCaseError(msg) from exc
 

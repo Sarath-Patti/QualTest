@@ -1,5 +1,7 @@
 """Modem Finite State Machine for protocol signaling validation and state reconstruction."""
 
+from typing import ClassVar
+
 from framework.logger import get_logger
 from framework.replay.models import ModemFSMState, ProtocolMessage
 
@@ -9,7 +11,9 @@ logger = get_logger("Replay.StateMachine")
 class ModemFSM:
     """Reusable Finite State Machine for modem protocol state reconstruction."""
 
-    TRANSITION_RULES: dict[tuple[ModemFSMState, ProtocolMessage], ModemFSMState] = {
+    TRANSITION_RULES: ClassVar[
+        dict[tuple[ModemFSMState, ProtocolMessage], ModemFSMState]
+    ] = {
         # IDLE -> RRC_CONNECTING
         (
             ModemFSMState.IDLE,
@@ -105,7 +109,10 @@ class ModemFSM:
             ProtocolMessage.DETACH_REQUEST,
         ): ModemFSMState.DETACHED,
         # DETACHED transitions
-        (ModemFSMState.DETACHED, ProtocolMessage.DETACH_ACCEPT): ModemFSMState.DETACHED,
+        (
+            ModemFSMState.DETACHED,
+            ProtocolMessage.DETACH_ACCEPT,
+        ): ModemFSMState.DETACHED,
         (
             ModemFSMState.DETACHED,
             ProtocolMessage.RRC_CONNECTION_REQUEST,
@@ -115,7 +122,10 @@ class ModemFSM:
             ModemFSMState.ERROR,
             ProtocolMessage.RRC_CONNECTION_REQUEST,
         ): ModemFSMState.RRC_CONNECTING,
-        (ModemFSMState.ERROR, ProtocolMessage.DETACH_ACCEPT): ModemFSMState.DETACHED,
+        (
+            ModemFSMState.ERROR,
+            ProtocolMessage.DETACH_ACCEPT,
+        ): ModemFSMState.DETACHED,
     }
 
     def __init__(self, initial_state: ModemFSMState = ModemFSMState.IDLE) -> None:
@@ -152,7 +162,10 @@ class ModemFSM:
         key = (prev_state, message)
 
         # Global Detach override
-        if message in (ProtocolMessage.DETACH_REQUEST, ProtocolMessage.DETACH_ACCEPT):
+        if message in (
+            ProtocolMessage.DETACH_REQUEST,
+            ProtocolMessage.DETACH_ACCEPT,
+        ):
             self._state = ModemFSMState.DETACHED
             logger.info(
                 "FSM State Transition: %s -> %s via '%s'",
