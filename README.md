@@ -6,107 +6,93 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.2 – JSON Test Runner
+## Current Milestone: v0.3 – Network Simulator
 
-The goal of milestone **v0.2** is to introduce a robust, extensible test case loading system capable of reading, validating, and representing test cases from JSON files without performing network execution.
+The goal of milestone **v0.3** is to build a reusable TCP/UDP-based modem network simulator capable of emulating basic modem communication for future automated validation.
 
-### Features Implemented in v0.2:
-- **Parser API**: Public entry point `load_testcase(path)` exposing clean loading interface.
-- **Data Models**: Immutable dataclass representations (`TestCase`, `TestStep`).
-- **Schema Validation**: Strict validation for required fields, supported protocols (`TCP`, `UDP`), port bounds (`1-65535`), timeout (`> 0`), retry (`>= 0`), and non-empty steps.
-- **Custom Exception Hierarchy**: Framework exceptions (`TestCaseError`, `MissingTestCaseError`, `JSONParseError`, `InvalidSchemaError`, `InvalidProtocolError`, `InvalidConfigurationError`).
-- **CLI Integration**: Extended `run.py` to support `--test <path>` for testcase loading, validation, and summary display.
-- **Sample Testcases**: Configuration definitions included in `testcases/` (`attach_success.json`, `detach.json`, `ping.json`, `timeout.json`, `packet_loss.json`).
+### Features Implemented in v0.3:
+- **Simulator Abstraction**: Base simulator class (`BaseSimulator`) and protocol-agnostic controller (`NetworkSimulator`).
+- **TCP Simulator Server & Client**: Multithreaded TCP server (`TCPServer`) and client (`TCPClient`).
+- **UDP Simulator Server & Client**: Datagram UDP server (`UDPServer`) and client (`UDPClient`).
+- **Modem Events**: Automated mapping for modem events (`ATTACH_REQUEST`, `DETACH_REQUEST`, `PING`, `STATUS`, `UNKNOWN_COMMAND`).
+- **Configurable Settings**: Support for configurable host, port, protocol, and simulated response latency.
+- **CLI Integration**: Run TCP or UDP simulator via `python run.py --simulator tcp` or `python run.py --simulator udp` with graceful shutdown handling.
+- **Sample Client Script**: Lightweight utility (`scripts/sample_client.py`) for manual command testing over TCP/UDP.
 
 ---
 
-## Parser Architecture
+## Network Simulator Architecture
 
 ```
                              +-----------------------+
-                             |   framework.parser    |
-                             |    (load_testcase)    |
+                             |        run.py         |
+                             |  (--simulator tcp|udp) |
                              +-----------+-----------+
                                          |
                                          v
                              +-----------------------+
-                             |      JSONLoader       |
-                             | (json_loader.py)      |
+                             |   NetworkSimulator    |
+                             | (network_simulator.py)|
                              +-----------+-----------+
                                          |
                        +-----------------+-----------------+
                        |                                   |
            +-----------v-----------+           +-----------v-----------+
-           |   Schema Validation   |           |  Exception Hierarchy  |
-           | (Protocols, Bounds)   |           |    (exceptions.py)    |
-           +-----------+-----------+           +-----------------------+
-                       |
-                       v
-           +-----------------------+
-           |     TestCase Model    |
-           |      (models.py)      |
-           +-----------------------+
+           |       TCPServer       |           |       UDPServer       |
+           |  (network/tcp/server) |           |  (network/udp/server) |
+           +-----------+-----------+           +-----------+-----------+
+                       |                                   |
+                       +-----------------+-----------------+
+                                         |
+                                         v
+                             +-----------------------+
+                             |     BaseSimulator     |
+                             |   (Modem Event Engine)|
+                             +-----------------------+
 ```
 
 ---
 
-## JSON Testcase Specification & Supported Fields
+## Supported Modem Commands & Responses
 
-Testcases are formatted as JSON files containing top-level parameters and an ordered array of execution steps.
+The simulator provides built-in responses for common modem control events:
 
-### Top-Level Fields
+| Incoming Command | Simulated Response | Description |
+| :--- | :--- | :--- |
+| `ATTACH_REQUEST` | `ATTACH_ACCEPT` | Simulates EPS/GPRS network attach request. |
+| `DETACH_REQUEST` | `DETACH_ACCEPT` | Simulates network detach request. |
+| `PING` | `PONG` | Simulates data channel connectivity check. |
+| `STATUS` | `MODEM_READY` | Simulates modem operating state query. |
+| *(Any Other Command)* | `UNKNOWN_COMMAND` | Default response for unhandled commands. |
 
-| Field | Type | Required | Description / Constraints |
-| :--- | :--- | :--- | :--- |
-| `name` | String | Yes | Name of the testcase (non-empty). |
-| `description` | String | Yes | Summary of the test objective. |
-| `protocol` | String | Yes | Supported network protocol: `"TCP"` or `"UDP"`. |
-| `host` | String | Yes | Target host IP address or hostname. |
-| `port` | Integer | Yes | Target port number (range: `1` to `65535`). |
-| `timeout` | Float/Int | Yes | Step/Execution timeout in seconds (`> 0`). |
-| `retry` | Integer | Yes | Number of retry attempts on failure (`>= 0`). |
-| `steps` | Array | Yes | Non-empty array of test step objects. |
+---
 
-### Step Object Fields
+## Starting the Simulator
 
-| Field | Type | Required | Description / Constraints |
-| :--- | :--- | :--- | :--- |
-| `send` | String | Yes | Command or data payload string to send. |
-| `expect` | String | Yes | Expected response string from target. |
-| `delay` | Float/Int | No | Optional delay in seconds before step execution (default: `0.0`, must be `>= 0`). |
+### Run TCP Modem Simulator
+```bash
+python run.py --simulator tcp
+```
 
-### Example Testcase (`attach_success.json`)
+### Run UDP Modem Simulator
+```bash
+python run.py --simulator udp
+```
 
-```json
-{
-  "name": "Attach Success Test",
-  "description": "Validates successful network attach sequence via AT commands over TCP.",
-  "protocol": "TCP",
-  "host": "127.0.0.1",
-  "port": 8080,
-  "timeout": 5.0,
-  "retry": 3,
-  "steps": [
-    {
-      "send": "AT+CFUN=1",
-      "expect": "OK",
-      "delay": 0.5
-    },
-    {
-      "send": "AT+CGATT=1",
-      "expect": "OK",
-      "delay": 1.0
-    }
-  ]
-}
+### Manual Testing with Sample Client
+In a separate terminal window:
+
+```bash
+# Test TCP Simulator
+python scripts/sample_client.py --protocol tcp --command ATTACH_REQUEST
+
+# Test UDP Simulator
+python scripts/sample_client.py --protocol udp --command PING
 ```
 
 ---
 
-## Getting Started & Usage
-
-### Inspect & Validate a Testcase
-Run `run.py` with the `--test` (or `-t`) flag:
+## JSON Testcase Inspection & Validation
 
 ```bash
 python run.py --test testcases/attach_success.json
@@ -118,3 +104,4 @@ python run.py --test testcases/attach_success.json
 
 - [x] **v0.1 – Project Foundation**: Directory structure, configuration system, logging subsystem, CLI entry point, public module interfaces.
 - [x] **v0.2 – JSON Test Runner**: JSON loader, schema validation, exception hierarchy, data models, sample testcases, CLI integration.
+- [x] **v0.3 – Network Simulator**: TCP/UDP simulator servers, modem event engine, latency simulation, sample client, CLI integration.

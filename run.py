@@ -3,16 +3,18 @@
 
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
-JSON testcase loading and schema validation.
+JSON testcase loading, schema validation, and modem network simulation.
 """
 
 import argparse
 import sys
+import time
 from typing import List, Optional
 
 from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
+from framework.simulator import NetworkSimulator
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -43,6 +45,15 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         type=str,
         default=None,
         help="Path to JSON testcase file to load and validate",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--simulator",
+        type=str,
+        choices=["tcp", "udp"],
+        default=None,
+        help="Start modem network simulator for specified protocol (tcp or udp)",
     )
 
     parser.add_argument(
@@ -157,7 +168,31 @@ def main(args: Optional[List[str]] = None) -> int:
         logger.info("Testcase loaded and validated successfully. (Execution omitted in v0.2)")
         return 0
 
-    # 6. Default Startup Sequence Display
+    # 6. Handle Network Simulator (--simulator option)
+    if parsed.simulator:
+        proto = parsed.simulator.upper()
+        sim = NetworkSimulator(protocol=proto, settings=settings)
+        logger.info("==================================================")
+        logger.info("  %s %s SIMULATOR STARTUP", settings.app_name, sim.protocol)
+        logger.info("==================================================")
+        logger.info("Listening Protocol  : %s", sim.protocol)
+        logger.info("Target Binding      : %s:%d", sim.host, sim.port)
+        logger.info("Simulated Delay     : %.1f ms", sim.response_delay_ms)
+        logger.info("Press Ctrl+C to stop the simulator gracefully.")
+        logger.info("--------------------------------------------------")
+
+        sim.start()
+        try:
+            while sim.is_running:
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal (Ctrl+C). Initiating graceful shutdown...")
+        finally:
+            sim.stop()
+            logger.info("Simulator shutdown complete.")
+        return 0
+
+    # 7. Default Startup Sequence Display
     logger.info("==================================================")
     logger.info("  %s v%s Initialization", settings.app_name, settings.version)
     logger.info("==================================================")
@@ -170,6 +205,7 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("--------------------------------------------------")
     logger.info("Framework initialized successfully.")
     logger.info("Use '--test <path>' to load and validate a JSON testcase.")
+    logger.info("Use '--simulator tcp|udp' to start the modem network simulator.")
     logger.info("Startup sequence completed.")
 
     return 0
