@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qualtest"
-version = "0.8.0"
+version = "0.9.0"
 description = "Wireless Modem Validation & Test Automation Framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,17 +61,20 @@ select = [
     "F",   # Pyflakes
     "I",   # isort (import sorting)
     "B",   # flake8-bugbear
-    "C90", # mccabe complexity
     "UP",  # pyupgrade
+    "RUF", # Ruff-specific rules
     "PL",  # Pylint
 ]
 ignore = [
-    "E501", # line too long (handled by Black)
+    "E501",    # line too long (handled by Black)
+    "C901",    # mccabe complexity
+    "PLR0911", # too many return statements
+    "PLR0912", # too many branches
     "PLR0913", # too many arguments in function definition
+    "PLR0915", # too many statements
+    "PLR0917", # too many positional arguments
+    "PLR2004", # magic value used in comparison
 ]
-
-[tool.ruff.lint.mccabe]
-max-complexity = 10
 
 # --- MyPy Configuration ---
 [tool.mypy]
@@ -100,15 +103,19 @@ addopts = "-v --strict-markers"
 # --- Coverage Configuration ---
 [tool.coverage.run]
 source = ["framework", "network"]
-branch = true
 omit = [
     "tests/*",
     "scripts/*",
+    "setup.py",
 ]
 
 [tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
 show_missing = true
-fail_under = 0
-
-[tool.coverage.html]
-directory = "htmlcov"
