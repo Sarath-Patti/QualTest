@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "packet_loss_percentage": 5.0,
+  "minimum_delay_ms": 50.0,
+  "maximum_delay_ms": 250.0,
+  "timeout_probability": 0.02,
+  "disconnect_probability": 0.01,
+  "malformed_response_probability": 0.03
+}

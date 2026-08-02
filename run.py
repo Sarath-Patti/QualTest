@@ -3,7 +3,7 @@
 
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
-JSON testcase loading, modem network simulation, and testcase execution validation.
+JSON testcase loading, modem network simulation, failure injection, and testcase execution validation.
 """
 
 import argparse
@@ -15,7 +15,7 @@ from typing import List, Optional
 from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
-from framework.simulator import NetworkSimulator
+from framework.simulator import FailureInjector, NetworkSimulator
 from framework.validator import ValidationState, validate
 
 
@@ -64,6 +64,13 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         choices=["tcp", "udp"],
         default=None,
         help="Start modem network simulator for specified protocol (tcp or udp)",
+    )
+
+    parser.add_argument(
+        "--failure-config",
+        type=str,
+        default=None,
+        help="Path to failure injection JSON configuration file",
     )
 
     parser.add_argument(
@@ -200,7 +207,6 @@ def main(args: Optional[List[str]] = None) -> int:
             logger.error("Failed to load testcase '%s': %s", parsed.run, str(exc))
             return 1
 
-        # Auto-start local simulator if target host is loopback and not currently listening
         sim_instance: Optional[NetworkSimulator] = None
         is_tcp = testcase.protocol.upper() == "TCP"
 
@@ -255,13 +261,27 @@ def main(args: Optional[List[str]] = None) -> int:
     # 7. Handle Network Simulator (--simulator option)
     if parsed.simulator:
         proto = parsed.simulator.upper()
-        sim = NetworkSimulator(protocol=proto, settings=settings)
+        failure_injector: Optional[FailureInjector] = None
+
+        if parsed.failure_config:
+            try:
+                failure_injector = FailureInjector.from_file(parsed.failure_config)
+            except Exception as exc:
+                logger.error("Failed to load failure config '%s': %s", parsed.failure_config, exc)
+                return 1
+
+        sim = NetworkSimulator(
+            protocol=proto,
+            failure_injector=failure_injector,
+            settings=settings,
+        )
         logger.info("==================================================")
         logger.info("  %s %s SIMULATOR STARTUP", settings.app_name, sim.protocol)
         logger.info("==================================================")
         logger.info("Listening Protocol  : %s", sim.protocol)
         logger.info("Target Binding      : %s:%d", sim.host, sim.port)
         logger.info("Simulated Delay     : %.1f ms", sim.response_delay_ms)
+        logger.info("Failure Injection   : %s", "ENABLED" if failure_injector and failure_injector.enabled else "DISABLED")
         logger.info("Press Ctrl+C to stop the simulator gracefully.")
         logger.info("--------------------------------------------------")
 
@@ -290,7 +310,7 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("Framework initialized successfully.")
     logger.info("Use '--run <path>' to execute and validate a JSON testcase.")
     logger.info("Use '--test <path>' to load and validate a JSON testcase schema.")
-    logger.info("Use '--simulator tcp|udp' to start the modem network simulator.")
+    logger.info("Use '--simulator tcp|udp [--failure-config <path>]' to start network simulator.")
     logger.info("Startup sequence completed.")
 
     return 0

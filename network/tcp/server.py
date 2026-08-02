@@ -2,15 +2,17 @@
 
 Provides a multithreaded TCP socket server emulating modem communication.
 Handles client connection lifecycle, command processing, latency simulation,
-and graceful shutdown.
+failure injection, and graceful shutdown.
 """
 
 import socket
 import threading
+import time
 from typing import List, Optional, Tuple
 
 from framework.logger import get_logger
 from framework.simulator.base import BaseSimulator
+from framework.simulator.failure_injector import FailureAction, FailureInjector
 
 logger = get_logger("Network.TCPServer")
 
@@ -22,6 +24,7 @@ class TCPServer(BaseSimulator):
         host: IP address to bind server.
         port: Port number to bind server.
         response_delay_ms: Latency delay in milliseconds before returning responses.
+        failure_injector: Optional FailureInjector instance.
     """
 
     def __init__(
@@ -29,6 +32,7 @@ class TCPServer(BaseSimulator):
         host: str = "127.0.0.1",
         port: int = 8080,
         response_delay_ms: float = 0.0,
+        failure_injector: Optional[FailureInjector] = None,
     ) -> None:
         """Initializes TCPServer.
 
@@ -36,8 +40,14 @@ class TCPServer(BaseSimulator):
             host: Binding host IP address.
             port: Binding port number.
             response_delay_ms: Simulated delay in milliseconds.
+            failure_injector: Optional FailureInjector instance.
         """
-        super().__init__(host=host, port=port, response_delay_ms=response_delay_ms)
+        super().__init__(
+            host=host,
+            port=port,
+            response_delay_ms=response_delay_ms,
+            failure_injector=failure_injector,
+        )
         self._server_socket: Optional[socket.socket] = None
         self._listener_thread: Optional[threading.Thread] = None
         self._is_running: bool = False
@@ -47,11 +57,7 @@ class TCPServer(BaseSimulator):
 
     @property
     def is_running(self) -> bool:
-        """Indicates if the TCP server is running.
-
-        Returns:
-            bool: Running flag.
-        """
+        """Indicates if the TCP server is running."""
         return self._is_running
 
     def start(self) -> None:
@@ -66,7 +72,7 @@ class TCPServer(BaseSimulator):
                 self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 self._server_socket.bind((self.host, self.port))
                 self._server_socket.listen(5)
-                self._server_socket.settimeout(1.0)  # Allow checking stop flag periodically
+                self._server_socket.settimeout(1.0)
                 self._is_running = True
             except Exception as exc:
                 logger.error("Failed to start TCP server on %s:%d: %s", self.host, self.port, exc)
@@ -118,7 +124,6 @@ class TCPServer(BaseSimulator):
                 try:
                     data = client_sock.recv(4096)
                     if not data:
-                        # Client closed connection
                         break
                     buffer += data.decode("utf-8", errors="replace")
                 except socket.timeout:
@@ -138,7 +143,25 @@ class TCPServer(BaseSimulator):
                         continue
 
                     logger.info("Received TCP command: '%s' from %s:%d", command, client_addr[0], client_addr[1])
-                    response = self.process_command(command)
+
+                    # Failure Injection Processing
+                    if self.failure_injector and self.failure_injector.enabled:
+                        action, payload = self.failure_injector.evaluate_failure(command)
+                        if action == FailureAction.DROP_PACKET:
+                            continue
+                        elif action == FailureAction.TIMEOUT:
+                            time.sleep(10.0)
+                            continue
+                        elif action == FailureAction.DISCONNECT:
+                            logger.info("Connection reset/disconnect for %s:%d", client_addr[0], client_addr[1])
+                            return
+                        elif action == FailureAction.MALFORMED_RESPONSE:
+                            response = str(payload)
+                        else:
+                            response = self.process_command(command)
+                    else:
+                        response = self.process_command(command)
+
                     logger.info("Sent TCP response: '%s' to %s:%d", response, client_addr[0], client_addr[1])
 
                     try:
@@ -146,19 +169,6 @@ class TCPServer(BaseSimulator):
                     except Exception as exc:
                         logger.error("Error sending TCP response to %s:%d: %s", client_addr[0], client_addr[1], exc)
                         break
-
-                # If single command sent without newline
-                if buffer and "\n" not in buffer:
-                    command = buffer.strip()
-                    if command in self._custom_handlers:
-                        logger.info("Received TCP command: '%s' from %s:%d", command, client_addr[0], client_addr[1])
-                        response = self.process_command(command)
-                        logger.info("Sent TCP response: '%s' to %s:%d", response, client_addr[0], client_addr[1])
-                        try:
-                            client_sock.sendall((response + "\n").encode("utf-8"))
-                        except Exception:
-                            pass
-                        buffer = ""
 
         finally:
             logger.info("TCP Client disconnected from %s:%d", client_addr[0], client_addr[1])
@@ -178,7 +188,6 @@ class TCPServer(BaseSimulator):
             logger.info("Stopping TCP simulator server...")
             self._is_running = False
 
-        # Close all active client sockets
         with self._lock:
             for sock in self._client_sockets:
                 try:
@@ -191,10 +200,8 @@ class TCPServer(BaseSimulator):
                     pass
             self._client_sockets.clear()
 
-        # Close main server socket
         self._cleanup_socket()
 
-        # Join listener thread
         if self._listener_thread and self._listener_thread.is_alive():
             self._listener_thread.join(timeout=2.0)
 

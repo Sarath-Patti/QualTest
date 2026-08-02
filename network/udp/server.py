@@ -2,15 +2,17 @@
 
 Provides a datagram UDP socket server emulating modem communication.
 Handles incoming datagrams, command processing, latency simulation,
-and graceful shutdown.
+failure injection, and graceful shutdown.
 """
 
 import socket
 import threading
+import time
 from typing import Optional
 
 from framework.logger import get_logger
 from framework.simulator.base import BaseSimulator
+from framework.simulator.failure_injector import FailureAction, FailureInjector
 
 logger = get_logger("Network.UDPServer")
 
@@ -22,6 +24,7 @@ class UDPServer(BaseSimulator):
         host: IP address to bind server.
         port: Port number to bind server.
         response_delay_ms: Latency delay in milliseconds before returning responses.
+        failure_injector: Optional FailureInjector instance.
     """
 
     def __init__(
@@ -29,6 +32,7 @@ class UDPServer(BaseSimulator):
         host: str = "127.0.0.1",
         port: int = 8081,
         response_delay_ms: float = 0.0,
+        failure_injector: Optional[FailureInjector] = None,
     ) -> None:
         """Initializes UDPServer.
 
@@ -36,8 +40,14 @@ class UDPServer(BaseSimulator):
             host: Binding host IP address.
             port: Binding port number.
             response_delay_ms: Simulated delay in milliseconds.
+            failure_injector: Optional FailureInjector instance.
         """
-        super().__init__(host=host, port=port, response_delay_ms=response_delay_ms)
+        super().__init__(
+            host=host,
+            port=port,
+            response_delay_ms=response_delay_ms,
+            failure_injector=failure_injector,
+        )
         self._server_socket: Optional[socket.socket] = None
         self._listener_thread: Optional[threading.Thread] = None
         self._is_running: bool = False
@@ -45,11 +55,7 @@ class UDPServer(BaseSimulator):
 
     @property
     def is_running(self) -> bool:
-        """Indicates if the UDP server is running.
-
-        Returns:
-            bool: Running flag.
-        """
+        """Indicates if the UDP server is running."""
         return self._is_running
 
     def start(self) -> None:
@@ -95,12 +101,27 @@ class UDPServer(BaseSimulator):
                 continue
 
             logger.info("Received UDP command: '%s' from %s:%d", command, addr[0], addr[1])
-            response = self.process_command(command)
+
+            # Failure Injection Processing
+            if self.failure_injector and self.failure_injector.enabled:
+                action, payload = self.failure_injector.evaluate_failure(command)
+                if action in (FailureAction.DROP_PACKET, FailureAction.DISCONNECT):
+                    continue
+                elif action == FailureAction.TIMEOUT:
+                    time.sleep(10.0)
+                    continue
+                elif action == FailureAction.MALFORMED_RESPONSE:
+                    response = str(payload)
+                else:
+                    response = self.process_command(command)
+            else:
+                response = self.process_command(command)
+
             logger.info("Sent UDP response: '%s' to %s:%d", response, addr[0], addr[1])
 
             try:
-                payload = (response + "\n").encode("utf-8")
-                self._server_socket.sendto(payload, addr)
+                payload_bytes = (response + "\n").encode("utf-8")
+                self._server_socket.sendto(payload_bytes, addr)
             except Exception as exc:
                 logger.error("Error sending UDP response to %s:%d: %s", addr[0], addr[1], exc)
 
