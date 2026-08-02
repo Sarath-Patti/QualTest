@@ -1,0 +1,21 @@
+{
+  "name": "LTE_Attach_Procedure",
+  "description": "Validates basic 3GPP LTE network attach procedure sequence",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 5.0,
+  "retry": 1,
+  "steps": [
+    {
+      "send": "RRC_CONNECTION_REQUEST",
+      "expect": "RRC_CONNECTION_SETUP",
+      "delay": 0.05
+    },
+    {
+      "send": "NAS_ATTACH_REQUEST",
+      "expect": "NAS_ATTACH_ACCEPT",
+      "delay": 0.05
+    }
+  ]
+}

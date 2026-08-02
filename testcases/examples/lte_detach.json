@@ -1,0 +1,16 @@
+{
+  "name": "LTE_Detach_Procedure",
+  "description": "Validates 3GPP LTE network detach procedure",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 3.0,
+  "retry": 0,
+  "steps": [
+    {
+      "send": "DETACH_REQUEST",
+      "expect": "DETACH_ACCEPT",
+      "delay": 0.02
+    }
+  ]
+}

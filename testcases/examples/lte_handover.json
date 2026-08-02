@@ -1,0 +1,16 @@
+{
+  "name": "LTE_Handover_Procedure",
+  "description": "Validates LTE inter-eNB cell handover execution",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 5.0,
+  "retry": 2,
+  "steps": [
+    {
+      "send": "HANDOVER_REQUEST",
+      "expect": "HANDOVER_COMPLETE",
+      "delay": 0.05
+    }
+  ]
+}

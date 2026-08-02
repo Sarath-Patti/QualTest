@@ -1,0 +1,16 @@
+{
+  "name": "Failure_Injection_Test",
+  "description": "Executes modem commands with simulated latency failure injection",
+  "protocol": "UDP",
+  "host": "127.0.0.1",
+  "port": 8081,
+  "timeout": 5.0,
+  "retry": 1,
+  "steps": [
+    {
+      "send": "PING",
+      "expect": "PONG",
+      "delay": 0.1
+    }
+  ]
+}
