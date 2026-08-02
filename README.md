@@ -6,88 +6,86 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.5 – Failure Injection Engine
+## Current Milestone: v0.6 – Concurrent Test Scheduler
 
-The goal of milestone **v0.5** is to introduce a configurable, protocol-independent failure injection engine capable of simulating realistic wireless network anomalies during network simulation.
+The goal of milestone **v0.6** is to implement a scalable concurrent test scheduler capable of discovering, queueing, and executing multiple testcases simultaneously using Python's `ThreadPoolExecutor`.
 
-### Features Implemented in v0.5:
-- **Failure Injection Engine**: Protocol-independent engine (`FailureInjector`) simulating wireless network anomalies.
-- **Supported Failure Types**:
-  - Packet Loss (`packet_loss_percentage`)
-  - Artificial Response Delay (`minimum_delay_ms`, `maximum_delay_ms`)
-  - Connection Timeout (`timeout_probability`)
-  - Connection Reset / Disconnect (`disconnect_probability`)
-  - Malformed Response (`malformed_response_probability`)
-- **JSON Configuration**: Configurable parameters loaded from `config/failure.json`.
-- **Server Integration**: Optional failure injection integrated into `TCPServer` and `UDPServer`.
-- **CLI Integration**: Run network simulator with failure injection using `python run.py --simulator tcp --failure-config config/failure.json`.
+### Features Implemented in v0.6:
+- **Concurrent Test Scheduler**: Core `ConcurrentScheduler` engine managing worker thread pools.
+- **Multithreaded Execution Model**: Discovers and dispatches multiple independent testcases in parallel via `ThreadPoolExecutor`.
+- **Scheduler Data Models**: Immutable dataclass models (`ExecutionTask`, `ExecutionResult`, `SchedulerSummary`).
+- **Worker Error Isolation**: Fault isolation ensuring failing testcases or worker exceptions do not crash the scheduler pool.
+- **Scheduler Lifecycle**: Full lifecycle control (`initialize`, `start`, `submit_task`, `wait_for_completion`, `cancel_pending_tasks`, `shutdown`).
+- **CLI Integration**: Batch execution of testcase suites via `python run.py --run-all testcases/`.
 
 ---
 
-## Failure Injection Engine Architecture
+## Concurrent Test Scheduler Architecture
 
 ```
                              +-----------------------+
                              |        run.py         |
-                             |  (--failure-config)   |
+                             |  (--run-all <dir>)    |
                              +-----------+-----------+
                                          |
                                          v
                              +-----------------------+
-                             |    FailureInjector    |
-                             | (failure_injector.py) |
+                             |  framework.scheduler  |
+                             |  (ConcurrentScheduler)|
                              +-----------+-----------+
                                          |
-                       +-----------------+-----------------+
-                       |                                   |
-           +-----------v-----------+           +-----------v-----------+
-           |       TCPServer       |           |       UDPServer       |
-           |  (network/tcp/server) |           |  (network/udp/server) |
-           +-----------------------+           +-----------------------+
+                                         v
+                             +-----------------------+
+                             |  ThreadPoolExecutor   |
+                             | (Worker Thread Pool)  |
+                             +----+-------------+----+
+                                  |             |
+           +----------------------+             +----------------------+
+           |                                                           |
+           v                                                           v
++-----------------------+                                   +-----------------------+
+|  Worker Thread #1     |                                   |  Worker Thread #N     |
+| (load & validate TC1) |                                   | (load & validate TCN) |
++-----------+-----------+                                   +-----------+-----------+
+            |                                                           |
+            +---------------------------+-------------------------------+
+                                        |
+                                        v
+                            +-----------------------+
+                            |   SchedulerSummary    |
+                            |      (models.py)      |
+                            +-----------------------+
 ```
 
 ---
 
-## Supported Failure Types & Configuration Format
+## Scheduler Lifecycle & Concurrent Execution Model
 
-Failures are configured via JSON in `config/failure.json`:
-
-```json
-{
-  "enabled": true,
-  "packet_loss_percentage": 5.0,
-  "minimum_delay_ms": 50.0,
-  "maximum_delay_ms": 250.0,
-  "timeout_probability": 0.02,
-  "disconnect_probability": 0.01,
-  "malformed_response_probability": 0.03
-}
-```
-
-### Supported Failure Settings
-
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `enabled` | Boolean | Master toggle to enable or disable failure injection. |
-| `packet_loss_percentage` | Float | Percentage chance to drop outgoing simulator responses (`0.0 - 100.0`). |
-| `minimum_delay_ms` | Float | Minimum artificial response delay in milliseconds. |
-| `maximum_delay_ms` | Float | Maximum artificial response delay in milliseconds. |
-| `timeout_probability` | Float | Probability of suppressing response to trigger client timeout (`0.0 - 1.0`). |
-| `disconnect_probability` | Float | Probability of dropping active client connection (`0.0 - 1.0`). |
-| `malformed_response_probability` | Float | Probability of returning malformed garbage response (`0.0 - 1.0`). |
+1. **Discovery**: Discover all `.json` testcase files in target directory.
+2. **Initialization**: Initialize `ConcurrentScheduler` with thread pool size (`max_workers`).
+3. **Queueing & Submission**: Submit each testcase as an `ExecutionTask` to `ThreadPoolExecutor`.
+4. **Parallel Execution**: Worker threads execute `load_testcase()` and `validate()` independently in parallel.
+5. **Fault Isolation**: Catch and record parser or worker exceptions per task without interrupting other workers.
+6. **Result Aggregation**: Aggregate thread-safe `ExecutionResult` records into an immutable `SchedulerSummary`.
+7. **Shutdown**: Perform graceful thread pool shutdown.
 
 ---
 
 ## CLI Usage
 
-### Run Network Simulator with Failure Injection
+### Run All Testcases Concurrently
 ```bash
-python run.py --simulator tcp --failure-config config/failure.json
+python run.py --run-all testcases/
 ```
 
-### Run Testcase Execution & Validation
+### Run Single Testcase Execution & Validation
 ```bash
 python run.py --run testcases/attach_success.json
+```
+
+### Start Modem Network Simulator with Failure Injection
+```bash
+python run.py --simulator tcp --failure-config config/failure.json
 ```
 
 ---
@@ -98,4 +96,5 @@ python run.py --run testcases/attach_success.json
 - [x] **v0.2 – JSON Test Runner**: JSON loader, schema validation, exception hierarchy, data models, sample testcases, CLI integration.
 - [x] **v0.3 – Network Simulator**: TCP/UDP simulator servers, modem event engine, latency simulation, sample client, CLI integration.
 - [x] **v0.4 – Validation Engine**: Step validation engine, latency measurement, validation state Enums, execution summary, CLI execution support.
-- [x] **v0.5 – Failure Injection Engine**: Configurable failure injector, simulated network anomalies (loss, delay, timeout, disconnect, malformed payloads), CLI failure config support.
+- [x] **v0.5 – Failure Injection Engine**: Configurable failure injector, simulated network anomalies, CLI failure config support.
+- [x] **v0.6 – Concurrent Test Scheduler**: ThreadPoolExecutor scheduler, parallel batch testcase execution, scheduler lifecycle, thread-safe result aggregation, CLI `--run-all` support.

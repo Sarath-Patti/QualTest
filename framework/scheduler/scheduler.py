@@ -1,65 +1,76 @@
 """Test job scheduling and queue management interface.
 
 Provides task scheduling interfaces for prioritizing, queueing, and dispatching test execution jobs.
-Business logic omitted as per v0.1 milestone specification.
+Delegates to ConcurrentScheduler for multithreaded test execution.
 """
 
-from dataclasses import dataclass
-from enum import Enum, auto
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
 
 from framework.logger import get_logger
+from framework.scheduler.concurrent_scheduler import ConcurrentScheduler
+from framework.scheduler.models import (
+    ExecutionResult,
+    ExecutionTask,
+    SchedulePriority,
+    SchedulerSummary,
+)
 
 logger = get_logger("Scheduler")
-
-
-class SchedulePriority(Enum):
-    """Priority levels for task scheduling."""
-
-    LOW = auto()
-    MEDIUM = auto()
-    HIGH = auto()
-    CRITICAL = auto()
-
-
-@dataclass
-class ScheduledTask:
-    """Represents a scheduled test task within the execution queue."""
-
-    task_id: str
-    testcase_name: str
-    priority: SchedulePriority = SchedulePriority.MEDIUM
-    scheduled_time_iso: Optional[str] = None
 
 
 class TestScheduler:
     """Interface for managing test job scheduling and queue operations."""
 
-    def __init__(self) -> None:
-        """Initializes the TestScheduler interface."""
-        logger.debug("TestScheduler interface initialized.")
-
-    def schedule_task(self, task: ScheduledTask) -> str:
-        """Schedules a task for execution.
+    def __init__(self, max_workers: Optional[int] = None) -> None:
+        """Initializes the TestScheduler interface.
 
         Args:
-            task: Task descriptor to be scheduled.
+            max_workers: Maximum worker threads.
+        """
+        self._scheduler = ConcurrentScheduler(max_workers=max_workers)
+        logger.debug("TestScheduler interface initialized.")
+
+    def schedule_task(
+        self,
+        testcase_path: Union[str, Path],
+        priority: SchedulePriority = SchedulePriority.MEDIUM,
+    ) -> ExecutionTask:
+        """Schedules a testcase task for execution.
+
+        Args:
+            testcase_path: Path to target testcase file.
+            priority: Priority level.
 
         Returns:
-            str: Assigned task identifier.
-
-        Raises:
-            NotImplementedError: Business logic deferred to future milestone.
+            ExecutionTask: Created task object.
         """
-        raise NotImplementedError("Task scheduling logic is not implemented in v0.1.")
+        return self._scheduler.submit_task(testcase_path, priority=priority)
 
-    def get_pending_tasks(self) -> List[ScheduledTask]:
-        """Retrieves currently pending scheduled tasks.
+    def run_all(self, directory_path: Union[str, Path]) -> SchedulerSummary:
+        """Discovers and runs all testcases within a directory concurrently.
+
+        Args:
+            directory_path: Target directory path containing JSON testcases.
 
         Returns:
-            List[ScheduledTask]: List of queued tasks.
-
-        Raises:
-            NotImplementedError: Business logic deferred to future milestone.
+            SchedulerSummary: Summary of execution results.
         """
-        raise NotImplementedError("Pending task query is not implemented in v0.1.")
+        testcase_paths = self._scheduler.discover_testcases(directory_path)
+        if not testcase_paths:
+            logger.warning("No testcases found to execute in %s", directory_path)
+            return SchedulerSummary(
+                total_testcases=0,
+                completed=0,
+                failed=0,
+                running=0,
+                total_execution_time_ms=0.0,
+            )
+
+        self._scheduler.start()
+        for path in testcase_paths:
+            self._scheduler.submit_task(path)
+
+        summary = self._scheduler.wait_for_completion()
+        self._scheduler.shutdown(graceful=True)
+        return summary

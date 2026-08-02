@@ -3,10 +3,12 @@
 
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
-JSON testcase loading, modem network simulation, failure injection, and testcase execution validation.
+JSON testcase loading, modem network simulation, failure injection, testcase execution validation,
+and concurrent testcase scheduling.
 """
 
 import argparse
+from pathlib import Path
 import socket
 import sys
 import time
@@ -15,6 +17,7 @@ from typing import List, Optional
 from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
+from framework.scheduler import run_all_testcases
 from framework.simulator import FailureInjector, NetworkSimulator
 from framework.validator import ValidationState, validate
 
@@ -54,7 +57,14 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         "--run",
         type=str,
         default=None,
-        help="Path to JSON testcase file to load, execute, and validate",
+        help="Path to single JSON testcase file to execute and validate",
+    )
+
+    parser.add_argument(
+        "--run-all",
+        type=str,
+        default=None,
+        help="Directory path containing JSON testcases to execute concurrently",
     )
 
     parser.add_argument(
@@ -124,7 +134,7 @@ def validate_config(settings: Settings) -> bool:
 def is_port_open(host: str, port: int, is_tcp: bool = True) -> bool:
     """Checks whether a target port is listening."""
     if not is_tcp:
-        return True  # UDP is connectionless
+        return True
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -198,7 +208,7 @@ def main(args: Optional[List[str]] = None) -> int:
         logger.info("Testcase loaded and validated successfully.")
         return 0
 
-    # 6. Handle Testcase Execution & Validation (--run option)
+    # 6. Handle Single Testcase Execution & Validation (--run option)
     if parsed.run:
         logger.info("QualTest v%s Test Execution Engine", settings.version)
         try:
@@ -234,7 +244,6 @@ def main(args: Optional[List[str]] = None) -> int:
             if sim_instance:
                 sim_instance.stop()
 
-        # Display Concise Execution Summary
         logger.info("==================================================")
         logger.info("  EXECUTION SUMMARY: %s", summary.testcase_name)
         logger.info("==================================================")
@@ -258,7 +267,55 @@ def main(args: Optional[List[str]] = None) -> int:
 
         return 0 if summary.final_status == ValidationState.PASS else 1
 
-    # 7. Handle Network Simulator (--simulator option)
+    # 7. Handle Concurrent Batch Execution (--run-all option)
+    if parsed.run_all:
+        logger.info("QualTest v%s Concurrent Test Scheduler", settings.version)
+        target_dir = Path(parsed.run_all).resolve()
+
+        tcp_sim: Optional[NetworkSimulator] = None
+        udp_sim: Optional[NetworkSimulator] = None
+
+        # Auto-start embedded TCP and UDP simulators if loopback ports are inactive
+        if not is_port_open("127.0.0.1", 8080, is_tcp=True):
+            tcp_sim = NetworkSimulator(protocol="TCP", port=8080, settings=settings)
+            tcp_sim.start()
+
+        if not is_port_open("127.0.0.1", 8081, is_tcp=False):
+            udp_sim = NetworkSimulator(protocol="UDP", port=8081, settings=settings)
+            udp_sim.start()
+
+        time.sleep(0.2)
+
+        try:
+            sched_summary = run_all_testcases(target_dir)
+        finally:
+            if tcp_sim:
+                tcp_sim.stop()
+            if udp_sim:
+                udp_sim.stop()
+
+        logger.info("==================================================")
+        logger.info("  CONCURRENT SCHEDULER SUMMARY")
+        logger.info("==================================================")
+        logger.info("Total Testcases : %d", sched_summary.total_testcases)
+        logger.info("Completed (PASS): %d", sched_summary.completed)
+        logger.info("Failed/Errors   : %d", sched_summary.failed)
+        logger.info("Total Wall Time : %.2f ms", sched_summary.total_execution_time_ms)
+        logger.info("--------------------------------------------------")
+        for res in sched_summary.results:
+            logger.info(
+                "Task '%s' [%s] | Worker: %s | Execution Time: %.2fms %s",
+                res.testcase_name,
+                res.execution_status.value,
+                res.worker_id,
+                res.execution_time_ms,
+                f"({res.error_message})" if res.error_message else "",
+            )
+        logger.info("==================================================")
+
+        return 0 if sched_summary.failed == 0 else 1
+
+    # 8. Handle Network Simulator (--simulator option)
     if parsed.simulator:
         proto = parsed.simulator.upper()
         failure_injector: Optional[FailureInjector] = None
@@ -296,7 +353,7 @@ def main(args: Optional[List[str]] = None) -> int:
             logger.info("Simulator shutdown complete.")
         return 0
 
-    # 8. Default Startup Sequence Display
+    # 9. Default Startup Sequence Display
     logger.info("==================================================")
     logger.info("  %s v%s Initialization", settings.app_name, settings.version)
     logger.info("==================================================")
@@ -308,9 +365,10 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("Log Level             : %s", log_level or settings.log_level)
     logger.info("--------------------------------------------------")
     logger.info("Framework initialized successfully.")
-    logger.info("Use '--run <path>' to execute and validate a JSON testcase.")
+    logger.info("Use '--run-all <dir>' to execute all testcases in parallel.")
+    logger.info("Use '--run <path>' to execute and validate a single testcase.")
     logger.info("Use '--test <path>' to load and validate a JSON testcase schema.")
-    logger.info("Use '--simulator tcp|udp [--failure-config <path>]' to start network simulator.")
+    logger.info("Use '--simulator tcp|udp' to start the modem network simulator.")
     logger.info("Startup sequence completed.")
 
     return 0
