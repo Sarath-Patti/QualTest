@@ -1,0 +1,57 @@
+[
+  {
+    "timestamp": "2026-08-02 10:15:00.000",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_REQUEST",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.020",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.035",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP_COMPLETE",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.050",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_REQUEST",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.080",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_ACCEPT",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.100",
+    "protocol": "MOBILITY",
+    "message": "SERVICE_REQUEST",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.120",
+    "protocol": "MOBILITY",
+    "message": "SERVICE_ACCEPT",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.150",
+    "protocol": "MOBILITY",
+    "message": "HANDOVER_REQUEST",
+    "direction": "INCOMING",
+    "metadata": { "target_pci": 102 }
+  },
+  {
+    "timestamp": "2026-08-02 10:15:00.190",
+    "protocol": "MOBILITY",
+    "message": "HANDOVER_COMPLETE",
+    "direction": "OUTGOING"
+  }
+]

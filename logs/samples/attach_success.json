@@ -1,0 +1,47 @@
+[
+  {
+    "timestamp": "2026-08-02 10:00:00.000",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_REQUEST",
+    "direction": "OUTGOING",
+    "metadata": { "cause": "mo-Signalling" }
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.020",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.035",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP_COMPLETE",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.050",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_REQUEST",
+    "direction": "OUTGOING",
+    "metadata": { "imsi": "001010000000001" }
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.080",
+    "protocol": "NAS",
+    "message": "NAS_AUTH_REQUEST",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.095",
+    "protocol": "NAS",
+    "message": "NAS_AUTH_ACCEPT",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:00:00.120",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_ACCEPT",
+    "direction": "INCOMING",
+    "metadata": { "guti": "2089300010001" }
+  }
+]

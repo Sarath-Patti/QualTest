@@ -6,15 +6,17 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.8.1 – Engineering Quality Fixes
+## Current Milestone: v0.9 – Protocol Log Replay & Analysis Engine
 
-The goal of milestone **v0.8.1** is to resolve all static analysis, linting, formatting, type checking, and test compatibility issues reported by Ruff, Black, MyPy, and Pytest across the framework while preserving existing functionality and architecture.
+The goal of milestone **v0.9** is to introduce a modular, production-quality offline protocol log replay and analysis engine capable of replaying LTE/5G signaling logs, reconstructing modem state transitions via a finite state machine (FSM), detecting signaling anomalies, generating ordered protocol timelines, calculating execution metrics, and providing CLI `--replay` integration.
 
-### Features & Fixes Implemented in v0.8.1:
-- **Ruff Compliance**: Resolved unused imports (`F401`), unused variables (`F841`), and open mode specifications (`UP015`).
-- **MyPy Type Safety**: Fixed missing type parameter imports (`Tuple`) and tightened type annotations across reporter, scheduler, simulator, and validator modules.
-- **Black Compatibility**: Ensured full formatting alignment with Black standards across all Python source files.
-- **Pytest Cleanups**: Streamlined test imports and assertions in `tests/test_foundation.py`.
+### Features Implemented in v0.9:
+- **Offline Log Replay Engine**: Replays LTE/5G signaling events from JSON, CSV, or Plain Text logs without live socket connections.
+- **Modem Finite State Machine (`ModemFSM`)**: Reconstructs modem state transitions across `IDLE`, `RRC_CONNECTING`, `CONNECTED`, `REGISTERED`, `IN_SERVICE`, `HANDOVER`, `DETACHED`, and `ERROR` states.
+- **Protocol Signaling Analyzer**: Automatically identifies anomalies (`MISSING_MESSAGE`, `DUPLICATE_MESSAGE`, `INVALID_TRANSITION`, `UNEXPECTED_DETACH`, `AUTHENTICATION_FAILURE`, `OUT_OF_ORDER_SIGNALING`, `UNKNOWN_MESSAGE`).
+- **Ordered Timeline Generator**: Generates ordered protocol timelines tracking timestamp, message, state transitions, and validation results.
+- **Replay Metrics Engine**: Calculates total duration, attach procedure time, registration time, handover duration, transition counts, and completion percentage.
+- **CLI Integration**: CLI `--replay logs/samples/attach_success.json` execution support.
 
 ---
 
@@ -68,6 +70,11 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every `push` and `p
 
 ## CLI Usage
 
+### Replay & Analyze Protocol Signaling Logs (v0.9)
+```bash
+python run.py --replay logs/samples/attach_success.json
+```
+
 ### Run All Testcases Concurrently & Generate Reports
 ```bash
 python run.py --run-all testcases/ --report
@@ -96,3 +103,4 @@ python run.py --simulator tcp --failure-config config/failure.json
 - [x] **v0.7 – Reporting & Metrics**: HTML and CSV report generation (`reports/report.html`, `reports/report.csv`), metrics calculation engine, CLI `--report` integration.
 - [x] **v0.8 – Engineering Quality**: `pyproject.toml` centralized tool config, `requirements-dev.txt`, Black, Ruff, MyPy, Pytest, Coverage, Pre-commit hooks, GitHub Actions CI workflow, developer guide (`docs/development.md`).
 - [x] **v0.8.1 – Engineering Quality Fixes**: Resolution of Ruff, Black, MyPy, and Pytest issues across all framework modules.
+- [x] **v0.9 – Protocol Log Replay & Analysis Engine**: Offline protocol log parser (JSON/CSV/TXT), LTE/5G message Enums, Modem FSM state transitions, protocol signaling anomaly analyzer, ordered timeline generator, replay metrics engine, CLI `--replay` integration.

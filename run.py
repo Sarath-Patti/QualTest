@@ -4,7 +4,7 @@
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
 JSON testcase loading, modem network simulation, failure injection, testcase execution validation,
-concurrent testcase scheduling, and HTML/CSV report generation.
+concurrent testcase scheduling, protocol log replay, and HTML/CSV report generation.
 """
 
 import argparse
@@ -16,6 +16,7 @@ from pathlib import Path
 from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
+from framework.replay import replay_log
 from framework.reporter import generate_reports
 from framework.scheduler import run_all_testcases
 from framework.simulator import FailureInjector, NetworkSimulator
@@ -70,6 +71,13 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         type=str,
         default=None,
         help="Directory path containing JSON testcases to execute concurrently",
+    )
+
+    parser.add_argument(
+        "--replay",
+        type=str,
+        default=None,
+        help="Path to protocol log file (JSON/CSV/TXT) to replay offline and analyze",
     )
 
     parser.add_argument(
@@ -314,6 +322,55 @@ def _handle_run_all_option(parsed: argparse.Namespace, settings: Settings) -> in
     return 0 if sched_summary.failed == 0 else 1
 
 
+def _handle_replay_option(parsed: argparse.Namespace, settings: Settings) -> int:
+    """Handles protocol log replay and analysis (--replay option)."""
+    logger = get_logger("Runner")
+    logger.info("QualTest v%s Protocol Log Replay & Analysis Engine", settings.version)
+    log_path = Path(parsed.replay).resolve()
+
+    try:
+        summary = replay_log(log_path)
+    except Exception as exc:
+        logger.error("Failed to execute protocol log replay: %s", exc)
+        return 1
+
+    logger.info("==================================================")
+    logger.info("  PROTOCOL REPLAY SUMMARY: %s", summary.log_file_path.name)
+    logger.info("==================================================")
+    logger.info("Final FSM State : %s", summary.final_state.value)
+    logger.info("Total Events    : %d", summary.total_events)
+    logger.info("Detected Issues : %d", len(summary.anomalies))
+    logger.info("Completion Pct  : %.1f%%", summary.metrics.completion_percentage)
+    logger.info("Attach Duration : %.2f ms", summary.metrics.attach_duration_ms)
+    logger.info("Reg Duration    : %.2f ms", summary.metrics.registration_duration_ms)
+    logger.info("Handover Dur    : %.2f ms", summary.metrics.handover_duration_ms)
+    logger.info("--------------------------------------------------")
+    logger.info("PROTOCOL TIMELINE:")
+    for entry in summary.timeline:
+        logger.info(
+            "  [%s] %-30s | State: %-15s -> %-15s | Status: %s",
+            entry.timestamp,
+            entry.message.value,
+            entry.previous_state.value,
+            entry.current_state.value,
+            entry.validation_result,
+        )
+
+    if summary.anomalies:
+        logger.info("--------------------------------------------------")
+        logger.info("DETECTED ANOMALIES:")
+        for anomaly in summary.anomalies:
+            logger.warning(
+                "  [%s] [%s] %s",
+                anomaly.timestamp,
+                anomaly.anomaly_type.value,
+                anomaly.message,
+            )
+    logger.info("==================================================")
+
+    return 0
+
+
 def _handle_simulator_option(parsed: argparse.Namespace, settings: Settings) -> int:
     """Handles network simulator execution (--simulator option)."""
     logger = get_logger("Runner")
@@ -375,6 +432,7 @@ def _handle_default_startup(settings: Settings, log_level: str | None) -> int:
     logger.info("Log Level             : %s", log_level or settings.log_level)
     logger.info("--------------------------------------------------")
     logger.info("Framework initialized successfully.")
+    logger.info("Use '--replay <path>' to replay and analyze a protocol signaling log.")
     logger.info(
         "Use '--run-all <dir> [--report]' to execute testcases in parallel with reports."
     )
@@ -417,6 +475,8 @@ def main(args: list[str] | None = None) -> int:
         ret = _handle_run_option(parsed, settings)
     elif parsed.run_all:
         ret = _handle_run_all_option(parsed, settings)
+    elif parsed.replay:
+        ret = _handle_replay_option(parsed, settings)
     elif parsed.simulator:
         ret = _handle_simulator_option(parsed, settings)
     else:

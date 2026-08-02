@@ -1,0 +1,45 @@
+[
+  {
+    "timestamp": "2026-08-02 10:25:00.000",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_REQUEST",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.020",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.035",
+    "protocol": "RRC",
+    "message": "RRC_CONNECTION_SETUP_COMPLETE",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.050",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_REQUEST",
+    "direction": "OUTGOING"
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.080",
+    "protocol": "NAS",
+    "message": "NAS_ATTACH_ACCEPT",
+    "direction": "INCOMING"
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.120",
+    "protocol": "DETACH",
+    "message": "DETACH_REQUEST",
+    "direction": "OUTGOING",
+    "metadata": { "detach_type": "switch_off" }
+  },
+  {
+    "timestamp": "2026-08-02 10:25:00.150",
+    "protocol": "DETACH",
+    "message": "DETACH_ACCEPT",
+    "direction": "INCOMING"
+  }
+]
