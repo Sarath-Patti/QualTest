@@ -1,0 +1,3 @@
+# QualTest v2 - Requirements
+# Requires Python 3.10+
+# Foundation v0.1 relies exclusively on Python standard library modules.
