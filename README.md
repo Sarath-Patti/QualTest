@@ -6,81 +6,78 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.6 – Concurrent Test Scheduler
+## Current Milestone: v0.7 – Reporting & Metrics
 
-The goal of milestone **v0.6** is to implement a scalable concurrent test scheduler capable of discovering, queueing, and executing multiple testcases simultaneously using Python's `ThreadPoolExecutor`.
+The goal of milestone **v0.7** is to build a modular reporting engine that transforms test execution and validation results into structured HTML and CSV reports alongside calculated execution metrics.
 
-### Features Implemented in v0.6:
-- **Concurrent Test Scheduler**: Core `ConcurrentScheduler` engine managing worker thread pools.
-- **Multithreaded Execution Model**: Discovers and dispatches multiple independent testcases in parallel via `ThreadPoolExecutor`.
-- **Scheduler Data Models**: Immutable dataclass models (`ExecutionTask`, `ExecutionResult`, `SchedulerSummary`).
-- **Worker Error Isolation**: Fault isolation ensuring failing testcases or worker exceptions do not crash the scheduler pool.
-- **Scheduler Lifecycle**: Full lifecycle control (`initialize`, `start`, `submit_task`, `wait_for_completion`, `cancel_pending_tasks`, `shutdown`).
-- **CLI Integration**: Batch execution of testcase suites via `python run.py --run-all testcases/`.
+### Features Implemented in v0.7:
+- **Reporting Engine**: Core `ReportGenerator` aggregating execution metrics and producing reports.
+- **Report Data Models**: Immutable dataclass models (`ReportSummary`, `TestCaseReport`, `ExecutionMetrics`).
+- **HTML Report Generation**: Formatted HTML report saved at `reports/report.html` with status badges, summary metrics, and result tables.
+- **CSV Report Generation**: Standard CSV report saved at `reports/report.csv` using Python's standard `csv` module.
+- **Metrics Calculation**: Automatic calculation of pass percentage (`pass_rate`), minimum, maximum, and average response latencies (`latency_ms`), and total wall-clock duration.
+- **CLI Integration**: Generate execution reports via `python run.py --run-all testcases/ --report`.
 
 ---
 
-## Concurrent Test Scheduler Architecture
+## Reporting Architecture
 
 ```
                              +-----------------------+
                              |        run.py         |
-                             |  (--run-all <dir>)    |
+                             |      (--report)       |
                              +-----------+-----------+
                                          |
                                          v
                              +-----------------------+
-                             |  framework.scheduler  |
-                             |  (ConcurrentScheduler)|
+                             |  framework.reporter   |
+                             |  (ReportGenerator)    |
                              +-----------+-----------+
                                          |
                                          v
                              +-----------------------+
-                             |  ThreadPoolExecutor   |
-                             | (Worker Thread Pool)  |
-                             +----+-------------+----+
-                                  |             |
-           +----------------------+             +----------------------+
-           |                                                           |
-           v                                                           v
-+-----------------------+                                   +-----------------------+
-|  Worker Thread #1     |                                   |  Worker Thread #N     |
-| (load & validate TC1) |                                   | (load & validate TCN) |
-+-----------+-----------+                                   +-----------+-----------+
-            |                                                           |
-            +---------------------------+-------------------------------+
-                                        |
-                                        v
-                            +-----------------------+
-                            |   SchedulerSummary    |
-                            |      (models.py)      |
-                            +-----------------------+
+                             |   Calculate Metrics   |
+                             |  (ExecutionMetrics)   |
+                             +-----------+-----------+
+                                         |
+                       +-----------------+-----------------+
+                       |                                   |
+           +-----------v-----------+           +-----------v-----------+
+           |   HTML Report Writer  |           |   CSV Report Writer   |
+           | (reports/report.html) |           |  (reports/report.csv) |
+           +-----------------------+           +-----------------------+
 ```
 
 ---
 
-## Scheduler Lifecycle & Concurrent Execution Model
+## Collected Metrics & Generated Reports
 
-1. **Discovery**: Discover all `.json` testcase files in target directory.
-2. **Initialization**: Initialize `ConcurrentScheduler` with thread pool size (`max_workers`).
-3. **Queueing & Submission**: Submit each testcase as an `ExecutionTask` to `ThreadPoolExecutor`.
-4. **Parallel Execution**: Worker threads execute `load_testcase()` and `validate()` independently in parallel.
-5. **Fault Isolation**: Catch and record parser or worker exceptions per task without interrupting other workers.
-6. **Result Aggregation**: Aggregate thread-safe `ExecutionResult` records into an immutable `SchedulerSummary`.
-7. **Shutdown**: Perform graceful thread pool shutdown.
+### Metrics Calculated
+
+| Metric | Type | Description |
+| :--- | :--- | :--- |
+| `pass_rate` | Float | Percentage of testcases that passed validation (`0.0 - 100.0%`). |
+| `average_latency_ms` | Float | Mean command response latency across all steps in milliseconds. |
+| `maximum_latency_ms` | Float | Peak command response latency across all steps in milliseconds. |
+| `minimum_latency_ms` | Float | Lowest command response latency across all steps in milliseconds. |
+| `total_execution_time_ms` | Float | Overall wall-clock execution duration in milliseconds. |
+
+### Generated Reports Output
+- **HTML Report**: `reports/report.html`
+- **CSV Report**: `reports/report.csv`
 
 ---
 
 ## CLI Usage
 
-### Run All Testcases Concurrently
+### Run All Testcases Concurrently & Generate Reports
 ```bash
-python run.py --run-all testcases/
+python run.py --run-all testcases/ --report
 ```
 
-### Run Single Testcase Execution & Validation
+### Run Single Testcase & Generate Reports
 ```bash
-python run.py --run testcases/attach_success.json
+python run.py --run testcases/attach_success.json --report
 ```
 
 ### Start Modem Network Simulator with Failure Injection
@@ -97,4 +94,5 @@ python run.py --simulator tcp --failure-config config/failure.json
 - [x] **v0.3 – Network Simulator**: TCP/UDP simulator servers, modem event engine, latency simulation, sample client, CLI integration.
 - [x] **v0.4 – Validation Engine**: Step validation engine, latency measurement, validation state Enums, execution summary, CLI execution support.
 - [x] **v0.5 – Failure Injection Engine**: Configurable failure injector, simulated network anomalies, CLI failure config support.
-- [x] **v0.6 – Concurrent Test Scheduler**: ThreadPoolExecutor scheduler, parallel batch testcase execution, scheduler lifecycle, thread-safe result aggregation, CLI `--run-all` support.
+- [x] **v0.6 – Concurrent Test Scheduler**: ThreadPoolExecutor scheduler, parallel batch testcase execution, scheduler lifecycle, thread-safe result aggregation.
+- [x] **v0.7 – Reporting & Metrics**: HTML and CSV report generation (`reports/report.html`, `reports/report.csv`), metrics calculation engine, CLI `--report` integration.

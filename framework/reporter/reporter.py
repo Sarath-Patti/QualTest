@@ -1,15 +1,16 @@
 """Test execution reporting interface.
 
-Defines the contract for compiling test execution results into reports (e.g. HTML, JSON, JUnit).
-Business logic omitted as per v0.1 milestone specification.
+Defines the contract for compiling test execution results into reports (e.g. HTML, CSV).
+Delegates to ReportGenerator for concrete report generation.
 """
 
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
 from framework.logger import get_logger
+from framework.reporter.report_generator import ReportGenerator
 
 logger = get_logger("Reporter")
 
@@ -18,6 +19,7 @@ class ReportFormat(Enum):
     """Supported export formats for test execution reports."""
 
     HTML = auto()
+    CSV = auto()
     JSON = auto()
     JUNIT_XML = auto()
 
@@ -42,23 +44,26 @@ class TestReporter:
             output_dir: Optional output directory path for reports.
         """
         self.output_dir = output_dir
+        self._generator = ReportGenerator()
         logger.debug("TestReporter interface initialized.")
 
     def generate_report(
         self,
-        execution_data: Dict[str, Any],
+        execution_data: Any,
         fmt: ReportFormat = ReportFormat.HTML,
     ) -> Path:
         """Generates a formatted report file from execution data.
 
         Args:
-            execution_data: Dictionary containing execution statistics and case outcomes.
-            fmt: Target ReportFormat format.
+            execution_data: SchedulerSummary or ExecutionSummary object.
+            fmt: Target ReportFormat format (HTML or CSV).
 
         Returns:
             Path: Path to generated report file.
-
-        Raises:
-            NotImplementedError: Business logic deferred to future milestone.
         """
-        raise NotImplementedError("Report generation logic is not implemented in v0.1.")
+        if fmt == ReportFormat.CSV:
+            _, csv_path = self._generator.generate_all(execution_data)
+            return csv_path
+        else:
+            html_path, _ = self._generator.generate_all(execution_data)
+            return html_path

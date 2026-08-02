@@ -4,7 +4,7 @@
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
 JSON testcase loading, modem network simulation, failure injection, testcase execution validation,
-and concurrent testcase scheduling.
+concurrent testcase scheduling, and HTML/CSV report generation.
 """
 
 import argparse
@@ -17,6 +17,7 @@ from typing import List, Optional
 from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
+from framework.reporter import generate_reports
 from framework.scheduler import run_all_testcases
 from framework.simulator import FailureInjector, NetworkSimulator
 from framework.validator import ValidationState, validate
@@ -65,6 +66,12 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         type=str,
         default=None,
         help="Directory path containing JSON testcases to execute concurrently",
+    )
+
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Generate HTML and CSV execution reports upon completion",
     )
 
     parser.add_argument(
@@ -265,6 +272,11 @@ def main(args: Optional[List[str]] = None) -> int:
             )
         logger.info("==================================================")
 
+        if parsed.report:
+            html_path, csv_path = generate_reports(summary)
+            print(f"[+] HTML Report : {html_path}")
+            print(f"[+] CSV Report  : {csv_path}")
+
         return 0 if summary.final_status == ValidationState.PASS else 1
 
     # 7. Handle Concurrent Batch Execution (--run-all option)
@@ -275,7 +287,6 @@ def main(args: Optional[List[str]] = None) -> int:
         tcp_sim: Optional[NetworkSimulator] = None
         udp_sim: Optional[NetworkSimulator] = None
 
-        # Auto-start embedded TCP and UDP simulators if loopback ports are inactive
         if not is_port_open("127.0.0.1", 8080, is_tcp=True):
             tcp_sim = NetworkSimulator(protocol="TCP", port=8080, settings=settings)
             tcp_sim.start()
@@ -312,6 +323,11 @@ def main(args: Optional[List[str]] = None) -> int:
                 f"({res.error_message})" if res.error_message else "",
             )
         logger.info("==================================================")
+
+        if parsed.report:
+            html_path, csv_path = generate_reports(sched_summary)
+            print(f"[+] HTML Report : {html_path}")
+            print(f"[+] CSV Report  : {csv_path}")
 
         return 0 if sched_summary.failed == 0 else 1
 
@@ -365,8 +381,8 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("Log Level             : %s", log_level or settings.log_level)
     logger.info("--------------------------------------------------")
     logger.info("Framework initialized successfully.")
-    logger.info("Use '--run-all <dir>' to execute all testcases in parallel.")
-    logger.info("Use '--run <path>' to execute and validate a single testcase.")
+    logger.info("Use '--run-all <dir> [--report]' to execute testcases in parallel with reports.")
+    logger.info("Use '--run <path> [--report]' to execute and validate a single testcase.")
     logger.info("Use '--test <path>' to load and validate a JSON testcase schema.")
     logger.info("Use '--simulator tcp|udp' to start the modem network simulator.")
     logger.info("Startup sequence completed.")
