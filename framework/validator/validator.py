@@ -5,7 +5,7 @@ Business logic omitted as per v0.1 milestone specification.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from framework.logger import get_logger
 
@@ -18,7 +18,7 @@ class ValidationRule:
 
     field_name: str
     expected_value: Any
-    tolerance: Optional[float] = None
+    tolerance: float | None = None
 
 
 @dataclass
@@ -26,8 +26,8 @@ class ValidationResult:
     """Outcome of a validation check."""
 
     is_valid: bool
-    failures: List[str]
-    metadata: Dict[str, Any]
+    failures: list[str]
+    metadata: dict[str, Any]
 
 
 class TestValidator:
@@ -37,7 +37,9 @@ class TestValidator:
         """Initializes the TestValidator interface."""
         logger.debug("TestValidator interface initialized.")
 
-    def validate(self, actual_data: Dict[str, Any], rules: List[ValidationRule]) -> ValidationResult:
+    def validate(
+        self, actual_data: dict[str, Any], rules: list[ValidationRule]
+    ) -> ValidationResult:
         """Validates actual response data against expected validation rules.
 
         Args:

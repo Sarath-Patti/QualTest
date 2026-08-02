@@ -5,12 +5,10 @@ Delegates to ConcurrentScheduler for multithreaded test execution.
 """
 
 from pathlib import Path
-from typing import List, Optional, Union
 
 from framework.logger import get_logger
 from framework.scheduler.concurrent_scheduler import ConcurrentScheduler
 from framework.scheduler.models import (
-    ExecutionResult,
     ExecutionTask,
     SchedulePriority,
     SchedulerSummary,
@@ -22,7 +20,7 @@ logger = get_logger("Scheduler")
 class TestScheduler:
     """Interface for managing test job scheduling and queue operations."""
 
-    def __init__(self, max_workers: Optional[int] = None) -> None:
+    def __init__(self, max_workers: int | None = None) -> None:
         """Initializes the TestScheduler interface.
 
         Args:
@@ -33,7 +31,7 @@ class TestScheduler:
 
     def schedule_task(
         self,
-        testcase_path: Union[str, Path],
+        testcase_path: str | Path,
         priority: SchedulePriority = SchedulePriority.MEDIUM,
     ) -> ExecutionTask:
         """Schedules a testcase task for execution.
@@ -47,7 +45,7 @@ class TestScheduler:
         """
         return self._scheduler.submit_task(testcase_path, priority=priority)
 
-    def run_all(self, directory_path: Union[str, Path]) -> SchedulerSummary:
+    def run_all(self, directory_path: str | Path) -> SchedulerSummary:
         """Discovers and runs all testcases within a directory concurrently.
 
         Args:

@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Tuple
 
 from framework.validator.models import ExecutionSummary, ValidationState
 
@@ -58,8 +57,8 @@ class ExecutionResult:
     execution_status: ValidationState
     execution_time_ms: float
     worker_id: str
-    summary: Optional[ExecutionSummary] = None
-    error_message: Optional[str] = None
+    summary: ExecutionSummary | None = None
+    error_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,4 +79,4 @@ class SchedulerSummary:
     failed: int
     running: int
     total_execution_time_ms: float
-    results: Tuple[ExecutionResult, ...] = field(default_factory=tuple)
+    results: tuple[ExecutionResult, ...] = field(default_factory=tuple)

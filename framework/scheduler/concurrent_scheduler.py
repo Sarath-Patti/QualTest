@@ -4,14 +4,13 @@ Manages multithreaded testcase execution using ThreadPoolExecutor, task queueing
 thread-safe result aggregation, worker error isolation, and graceful lifecycle management.
 """
 
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 import os
-from pathlib import Path
 import threading
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from pathlib import Path
 
-from framework.config import Settings, get_settings
+from framework.config import Settings
 from framework.logger import get_logger
 from framework.parser import TestCaseError, load_testcase
 from framework.scheduler.models import (
@@ -30,10 +29,10 @@ class ConcurrentScheduler:
 
     def __init__(
         self,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         queue_capacity: int = 100,
         scheduler_timeout: float = 300.0,
-        settings: Optional[Settings] = None,
+        settings: Settings | None = None,
     ) -> None:
         """Initializes ConcurrentScheduler.
 
@@ -43,7 +42,6 @@ class ConcurrentScheduler:
             scheduler_timeout: Global timeout for waiting for task completions.
             settings: Optional Settings instance.
         """
-        cfg = settings or get_settings()
         default_workers = min(32, (os.cpu_count() or 4) + 4)
         self.max_workers = max_workers or int(
             os.getenv("QUALTEST_MAX_WORKERS", str(default_workers))
@@ -51,15 +49,19 @@ class ConcurrentScheduler:
         self.queue_capacity = queue_capacity
         self.scheduler_timeout = scheduler_timeout
 
-        self._executor: Optional[ThreadPoolExecutor] = None
-        self._futures: List[Future[ExecutionResult]] = []
-        self._tasks: List[ExecutionTask] = []
-        self._results: List[ExecutionResult] = []
+        self._executor: ThreadPoolExecutor | None = None
+        self._futures: list[Future[ExecutionResult]] = []
+        self._tasks: list[ExecutionTask] = []
+        self._results: list[ExecutionResult] = []
         self._lock: threading.Lock = threading.Lock()
         self._is_started: bool = False
         self._start_time: float = 0.0
 
-        logger.info("Scheduler initialized with max_workers=%d, queue_capacity=%d", self.max_workers, self.queue_capacity)
+        logger.info(
+            "Scheduler initialized with max_workers=%d, queue_capacity=%d",
+            self.max_workers,
+            self.queue_capacity,
+        )
 
     @property
     def is_running(self) -> bool:
@@ -81,20 +83,21 @@ class ConcurrentScheduler:
             self._start_time = time.perf_counter()
             logger.info("Scheduler started with %d worker threads.", self.max_workers)
 
-    def discover_testcases(
-        self, directory_path: Union[str, Path]
-    ) -> List[Path]:
+    def discover_testcases(self, directory_path: str | Path) -> list[Path]:
         """Discovers JSON testcases within a specified directory.
 
         Args:
             directory_path: Directory path to scan for .json files.
 
         Returns:
-            List[Path]: Sorted list of discovered testcase file paths.
+            list[Path]: Sorted list of discovered testcase file paths.
         """
         target_dir = Path(directory_path).resolve()
         if not target_dir.exists() or not target_dir.is_dir():
-            logger.error("Testcase directory does not exist or is not a directory: %s", target_dir)
+            logger.error(
+                "Testcase directory does not exist or is not a directory: %s",
+                target_dir,
+            )
             return []
 
         json_files = sorted(list(target_dir.glob("*.json")))
@@ -103,7 +106,7 @@ class ConcurrentScheduler:
 
     def submit_task(
         self,
-        testcase_path: Union[str, Path],
+        testcase_path: str | Path,
         priority: SchedulePriority = SchedulePriority.MEDIUM,
     ) -> ExecutionTask:
         """Submits a testcase task to the scheduler for execution.
@@ -115,7 +118,6 @@ class ConcurrentScheduler:
         Returns:
             ExecutionTask: Created task object.
         """
-
         if not self._is_started:
             self.start()
 
@@ -129,18 +131,25 @@ class ConcurrentScheduler:
         )
 
         with self._lock:
+            assert self._executor is not None
             self._tasks.append(task)
             future = self._executor.submit(self._worker_entrypoint, task)
             self._futures.append(future)
 
-        logger.info("Testcase submitted: '%s' (%s)", task.testcase_name, task.testcase_path)
+        logger.info(
+            "Testcase submitted: '%s' (%s)", task.testcase_name, task.testcase_path
+        )
         return task
 
     def _worker_entrypoint(self, task: ExecutionTask) -> ExecutionResult:
         """Worker thread entry point executing an individual testcase task."""
         worker_id = threading.current_thread().name
-        logger.info("Worker %s started processing testcase '%s'", worker_id, task.testcase_name)
-        logger.info("Testcase execution started: '%s' on %s", task.testcase_name, worker_id)
+        logger.info(
+            "Worker %s started processing testcase '%s'", worker_id, task.testcase_name
+        )
+        logger.info(
+            "Testcase execution started: '%s' on %s", task.testcase_name, worker_id
+        )
 
         start_time = time.perf_counter()
         try:
@@ -174,7 +183,11 @@ class ConcurrentScheduler:
                 worker_id=worker_id,
                 error_message=f"Parser Error: {str(exc)}",
             )
-            logger.error("Testcase execution failed for '%s' (Parser Error): %s", task.testcase_name, exc)
+            logger.error(
+                "Testcase execution failed for '%s' (Parser Error): %s",
+                task.testcase_name,
+                exc,
+            )
 
         except Exception as exc:
             end_time = time.perf_counter()
@@ -186,7 +199,9 @@ class ConcurrentScheduler:
                 worker_id=worker_id,
                 error_message=f"Worker Error: {str(exc)}",
             )
-            logger.error("Unexpected worker error executing '%s': %s", task.testcase_name, exc)
+            logger.error(
+                "Unexpected worker error executing '%s': %s", task.testcase_name, exc
+            )
 
         logger.info("Worker %s finished task '%s'", worker_id, task.testcase_name)
 
@@ -195,9 +210,7 @@ class ConcurrentScheduler:
 
         return result
 
-    def wait_for_completion(
-        self, timeout: Optional[float] = None
-    ) -> SchedulerSummary:
+    def wait_for_completion(self, timeout: float | None = None) -> SchedulerSummary:
         """Waits for all submitted testcase tasks to complete.
 
         Args:
@@ -207,7 +220,7 @@ class ConcurrentScheduler:
             SchedulerSummary: Summary of all executed testcases.
         """
         wait_timeout = timeout or self.scheduler_timeout
-        futures_copy: List[Future[ExecutionResult]] = []
+        futures_copy: list[Future[ExecutionResult]] = []
 
         with self._lock:
             futures_copy = list(self._futures)
@@ -224,7 +237,9 @@ class ConcurrentScheduler:
         with self._lock:
             results_tuple = tuple(self._results)
             total = len(self._tasks)
-            passed = sum(1 for r in results_tuple if r.execution_status == ValidationState.PASS)
+            passed = sum(
+                1 for r in results_tuple if r.execution_status == ValidationState.PASS
+            )
             failed = total - passed
 
         summary = SchedulerSummary(

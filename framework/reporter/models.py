@@ -6,7 +6,6 @@ reports, and overall execution metrics.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Tuple
 
 
 @dataclass(frozen=True)

@@ -5,11 +5,10 @@ console output, rotating file output, and configurable log levels.
 """
 
 import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
 import sys
 import threading
-from typing import Optional
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from framework.config.settings import Settings, get_settings
 
@@ -21,7 +20,7 @@ class FrameworkLogger:
     console and rotating file handlers across multiple threads.
     """
 
-    _instance: Optional["FrameworkLogger"] = None
+    _instance: "FrameworkLogger | None" = None
     _lock: threading.Lock = threading.Lock()
     _initialized: bool = False
 
@@ -35,8 +34,8 @@ class FrameworkLogger:
 
     def initialize(
         self,
-        settings: Optional[Settings] = None,
-        log_level: Optional[str] = None,
+        settings: Settings | None = None,
+        log_level: str | None = None,
         log_file_name: str = "qualtest.log",
     ) -> None:
         """Initializes logging handlers and configuration.
@@ -93,7 +92,7 @@ class FrameworkLogger:
 
             self._initialized = True
 
-    def get_logger(self, name: Optional[str] = None) -> logging.Logger:
+    def get_logger(self, name: str | None = None) -> logging.Logger:
         """Retrieves a logger instance under the QualTest hierarchy.
 
         Args:
@@ -115,8 +114,8 @@ class FrameworkLogger:
 
 
 def setup_logger(
-    settings: Optional[Settings] = None,
-    log_level: Optional[str] = None,
+    settings: Settings | None = None,
+    log_level: str | None = None,
     log_file_name: str = "qualtest.log",
 ) -> None:
     """Helper function to initialize framework logging singleton.
@@ -132,7 +131,7 @@ def setup_logger(
     )
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """Public helper function to obtain a configured logger.
 
     Args:

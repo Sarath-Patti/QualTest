@@ -6,7 +6,6 @@ and overall execution summaries within QualTest.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Tuple
 
 
 class ValidationState(Enum):
@@ -52,7 +51,7 @@ class ValidationResult:
 
     step: ValidationStep
     is_success: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -75,4 +74,4 @@ class ExecutionSummary:
     failed_steps: int
     execution_time_ms: float
     final_status: ValidationState
-    step_results: Tuple[ValidationStep, ...] = field(default_factory=tuple)
+    step_results: tuple[ValidationStep, ...] = field(default_factory=tuple)

@@ -6,7 +6,7 @@ Business logic omitted as per v0.1 milestone specification.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from framework.logger import get_logger
 
@@ -30,14 +30,14 @@ class LogParser:
         """Initializes LogParser interface."""
         logger.debug("LogParser interface initialized.")
 
-    def parse_file(self, log_path: Path) -> List[ParsedLogEntry]:
+    def parse_file(self, log_path: Path) -> list[ParsedLogEntry]:
         """Parses a log file into structured log entries.
 
         Args:
             log_path: Path to the log file.
 
         Returns:
-            List[ParsedLogEntry]: List of parsed entries.
+            list[ParsedLogEntry]: List of parsed entries.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.
@@ -52,14 +52,14 @@ class ConfigParser:
         """Initializes ConfigParser interface."""
         logger.debug("ConfigParser interface initialized.")
 
-    def parse(self, config_content: Union[str, Path]) -> Dict[str, Any]:
+    def parse(self, config_content: str | Path) -> dict[str, Any]:
         """Parses configuration data into a dictionary structure.
 
         Args:
             config_content: Raw configuration string or file Path.
 
         Returns:
-            Dict[str, Any]: Parsed configuration mapping.
+            dict[str, Any]: Parsed configuration key-value mapping.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.

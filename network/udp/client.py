@@ -4,9 +4,8 @@ Provides a datagram socket client for sending commands and receiving responses f
 the UDP modem simulator.
 """
 
-from dataclasses import dataclass
 import socket
-from typing import Optional, Tuple
+from dataclasses import dataclass
 
 from framework.logger import get_logger
 
@@ -26,23 +25,25 @@ class UDPClientConfig:
 class UDPClient:
     """UDP datagram socket client."""
 
-    def __init__(self, config: Optional[UDPClientConfig] = None) -> None:
+    def __init__(self, config: UDPClientConfig | None = None) -> None:
         """Initializes UDPClient.
 
         Args:
             config: Optional UDPClientConfig settings.
         """
         self.config = config or UDPClientConfig()
-        self._socket: Optional[socket.socket] = None
+        self._socket: socket.socket | None = None
         self._init_socket()
-        logger.debug("UDPClient initialized for target %s:%d", self.config.host, self.config.port)
+        logger.debug(
+            "UDPClient initialized for target %s:%d", self.config.host, self.config.port
+        )
 
     def _init_socket(self) -> None:
         """Creates and configures underlying UDP socket."""
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.settimeout(self.config.timeout_seconds)
 
-    def send_to(self, data: bytes, target: Optional[Tuple[str, int]] = None) -> int:
+    def send_to(self, data: bytes, target: tuple[str, int] | None = None) -> int:
         """Sends a UDP datagram to the target address.
 
         Args:
@@ -54,26 +55,37 @@ class UDPClient:
         """
         if not self._socket:
             self._init_socket()
+        assert self._socket is not None
         dest = target or (self.config.host, self.config.port)
         return self._socket.sendto(data, dest)
 
-    def receive_from(self, max_bytes: Optional[int] = None) -> Tuple[bytes, Tuple[str, int]]:
+    def send(self, data: bytes) -> int:
+        """Alias method to send UDP payload to configured target."""
+        return self.send_to(data)
+
+    def receive_from(
+        self, max_bytes: int | None = None
+    ) -> tuple[bytes, tuple[str, int]]:
         """Receives a UDP datagram.
 
         Args:
             max_bytes: Maximum payload bytes to read.
 
         Returns:
-            Tuple[bytes, Tuple[str, int]]: (data, (host, port)) tuple.
+            tuple[bytes, tuple[str, int]]: (data, (host, port)) tuple.
         """
         if not self._socket:
             self._init_socket()
+        assert self._socket is not None
         buf_size = max_bytes or self.config.buffer_size
         return self._socket.recvfrom(buf_size)
 
-    def send_command(
-        self, command: str, target: Optional[Tuple[str, int]] = None
-    ) -> str:
+    def receive(self, max_bytes: int | None = None) -> bytes:
+        """Alias method to receive UDP payload."""
+        data, _ = self.receive_from(max_bytes)
+        return data
+
+    def send_command(self, command: str, target: tuple[str, int] | None = None) -> str:
         """Sends a command string over UDP and returns the response string.
 
         Args:

@@ -9,13 +9,17 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add project root to Python path
+from network.tcp import TCPClient, TCPClientConfig
+from network.udp import UDPClient, UDPClientConfig
+
+DEFAULT_TCP_PORT: int = 8080
+DEFAULT_UDP_PORT: int = 8081
+DEFAULT_TIMEOUT: float = 3.0
+
+# Add project root to Python path if executed directly
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
-
-from network.tcp import TCPClient, TCPClientConfig
-from network.udp import UDPClient, UDPClientConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +65,7 @@ def main() -> int:
     args = parse_args()
     protocol = args.protocol.lower()
     host = args.host
-    port = args.port or (8080 if protocol == "tcp" else 8081)
+    port = args.port or (DEFAULT_TCP_PORT if protocol == "tcp" else DEFAULT_UDP_PORT)
     command = args.command
 
     print(f"[*] Target      : {protocol.upper()}://{host}:{port}")
@@ -69,12 +73,16 @@ def main() -> int:
 
     try:
         if protocol == "tcp":
-            client = TCPClient(TCPClientConfig(host=host, port=port, timeout_seconds=3.0))
-            response = client.send_command(command)
+            tcp_client = TCPClient(
+                TCPClientConfig(host=host, port=port, timeout_seconds=DEFAULT_TIMEOUT)
+            )
+            response = tcp_client.send_command(command)
         else:
-            client = UDPClient(UDPClientConfig(host=host, port=port, timeout_seconds=3.0))
-            response = client.send_command(command)
-            client.close()
+            udp_client = UDPClient(
+                UDPClientConfig(host=host, port=port, timeout_seconds=DEFAULT_TIMEOUT)
+            )
+            response = udp_client.send_command(command)
+            udp_client.close()
 
         print(f"[+] Received   : '{response}'")
         return 0

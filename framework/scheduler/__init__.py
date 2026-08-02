@@ -1,7 +1,6 @@
 """Scheduler package for concurrent test job queueing, execution, and lifecycle management."""
 
 from pathlib import Path
-from typing import Optional, Union
 
 from framework.scheduler.concurrent_scheduler import ConcurrentScheduler
 from framework.scheduler.models import (
@@ -14,7 +13,7 @@ from framework.scheduler.scheduler import TestScheduler
 
 
 def run_all_testcases(
-    directory_path: Union[str, Path], max_workers: Optional[int] = None
+    directory_path: str | Path, max_workers: int | None = None
 ) -> SchedulerSummary:
     """Public API helper function to discover and run all testcases in a directory concurrently.
 
@@ -30,8 +29,8 @@ def run_all_testcases(
 
 
 __all__ = [
-    "TestScheduler",
     "ConcurrentScheduler",
+    "TestScheduler",
     "ExecutionTask",
     "ExecutionResult",
     "SchedulerSummary",

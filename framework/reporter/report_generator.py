@@ -5,9 +5,9 @@ Calculates pass rates, wall-clock durations, min/max/avg response latencies, and
 """
 
 import csv
-from datetime import datetime
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import Any
 
 from framework.config import Settings, get_settings
 from framework.logger import get_logger
@@ -21,11 +21,13 @@ from framework.validator.models import ExecutionSummary, ValidationState
 
 logger = get_logger("Reporter.Generator")
 
+PERCENT_MULTIPLIER: float = 100.0
+
 
 class ReportGenerator:
     """Generates structured HTML and CSV reports from execution summaries."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         """Initializes ReportGenerator.
 
         Args:
@@ -35,11 +37,84 @@ class ReportGenerator:
         self.reports_dir = self.settings.reports_dir
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
+    def _extract_failure_reason(
+        self, step_results: Sequence[Any], default_reason: str
+    ) -> str:
+        """Extracts descriptive failure details from a collection of step results."""
+        if default_reason != "None":
+            return default_reason
+
+        failed_steps = [s for s in step_results if s.status != ValidationState.PASS]
+        if failed_steps:
+            first = failed_steps[0]
+            return (
+                f"Step #{first.step_number} [{first.status.value}]: "
+                f"Sent '{first.command_sent}', Expected '{first.expected_response}', "
+                f"Got '{first.actual_response}'"
+            )
+        return "None"
+
+    def _process_execution_result(
+        self, item: ExecutionResult
+    ) -> tuple[TestCaseReport, list[float], bool]:
+        """Processes an ExecutionResult record into a TestCaseReport and latencies."""
+        name = item.testcase_name
+        status_str = item.execution_status.value
+        exec_time = item.execution_time_ms
+        failure_reason = item.error_message or "None"
+        step_latencies: list[float] = []
+
+        if item.summary and item.summary.step_results:
+            step_latencies = [s.latency_ms for s in item.summary.step_results]
+            if item.execution_status != ValidationState.PASS:
+                failure_reason = self._extract_failure_reason(
+                    item.summary.step_results, failure_reason
+                )
+
+        avg_lat = (sum(step_latencies) / len(step_latencies)) if step_latencies else 0.0
+        is_pass = item.execution_status == ValidationState.PASS
+
+        report = TestCaseReport(
+            testcase_name=name,
+            status=status_str,
+            execution_time_ms=exec_time,
+            average_latency_ms=avg_lat,
+            failure_reason=failure_reason,
+        )
+        return report, step_latencies, is_pass
+
+    def _process_execution_summary(
+        self, item: ExecutionSummary
+    ) -> tuple[TestCaseReport, list[float], bool]:
+        """Processes an ExecutionSummary record into a TestCaseReport and latencies."""
+        name = item.testcase_name
+        status_str = item.final_status.value
+        exec_time = item.execution_time_ms
+        failure_reason = "None"
+
+        step_latencies = [s.latency_ms for s in item.step_results]
+        if item.final_status != ValidationState.PASS:
+            failure_reason = self._extract_failure_reason(
+                item.step_results, failure_reason
+            )
+
+        avg_lat = (sum(step_latencies) / len(step_latencies)) if step_latencies else 0.0
+        is_pass = item.final_status == ValidationState.PASS
+
+        report = TestCaseReport(
+            testcase_name=name,
+            status=status_str,
+            execution_time_ms=exec_time,
+            average_latency_ms=avg_lat,
+            failure_reason=failure_reason,
+        )
+        return report, step_latencies, is_pass
+
     def calculate_metrics(
         self,
-        results: Sequence[Union[ExecutionResult, ExecutionSummary]],
+        results: Sequence[ExecutionResult | ExecutionSummary],
         total_wall_time_ms: float,
-    ) -> Tuple[ReportSummary, ExecutionMetrics, List[TestCaseReport]]:
+    ) -> tuple[ReportSummary, ExecutionMetrics, list[TestCaseReport]]:
         """Calculates execution performance metrics from result objects.
 
         Args:
@@ -47,74 +122,37 @@ class ReportGenerator:
             total_wall_time_ms: Total wall-clock execution time in milliseconds.
 
         Returns:
-            Tuple[ReportSummary, ExecutionMetrics, List[TestCaseReport]]: Calculated metrics tuple.
+            tuple[ReportSummary, ExecutionMetrics, list[TestCaseReport]]: Calculated metrics tuple.
         """
         logger.info("Report generation started")
 
-        tc_reports: List[TestCaseReport] = []
-        all_latencies: List[float] = []
+        tc_reports: list[TestCaseReport] = []
+        all_latencies: list[float] = []
         passed_count = 0
         failed_count = 0
 
         for item in results:
             if isinstance(item, ExecutionResult):
-                name = item.testcase_name
-                status_str = item.execution_status.value
-                exec_time = item.execution_time_ms
-                failure_reason = item.error_message or "None"
-
-                step_latencies: List[float] = []
-                if item.summary and item.summary.step_results:
-                    step_latencies = [s.latency_ms for s in item.summary.step_results]
-                    all_latencies.extend(step_latencies)
-                    if failure_reason == "None" and item.execution_status != ValidationState.PASS:
-                        # Extract failure details from step results
-                        failed_steps = [s for s in item.summary.step_results if s.status != ValidationState.PASS]
-                        if failed_steps:
-                            first_fail = failed_steps[0]
-                            failure_reason = f"Step #{first_fail.step_number} [{first_fail.status.value}]: Sent '{first_fail.command_sent}', Expected '{first_fail.expected_response}', Got '{first_fail.actual_response}'"
-
-                avg_lat = (sum(step_latencies) / len(step_latencies)) if step_latencies else 0.0
-
-                if item.execution_status == ValidationState.PASS:
-                    passed_count += 1
-                else:
-                    failed_count += 1
-
+                report, lats, is_pass = self._process_execution_result(item)
             elif isinstance(item, ExecutionSummary):
-                name = item.testcase_name
-                status_str = item.final_status.value
-                exec_time = item.execution_time_ms
-                failure_reason = "None"
+                report, lats, is_pass = self._process_execution_summary(item)
+            else:
+                continue
 
-                step_latencies = [s.latency_ms for s in item.step_results]
-                all_latencies.extend(step_latencies)
-                avg_lat = (sum(step_latencies) / len(step_latencies)) if step_latencies else 0.0
-
-                if item.final_status != ValidationState.PASS:
-                    failed_steps = [s for s in item.step_results if s.status != ValidationState.PASS]
-                    if failed_steps:
-                        first_fail = failed_steps[0]
-                        failure_reason = f"Step #{first_fail.step_number} [{first_fail.status.value}]: Sent '{first_fail.command_sent}', Expected '{first_fail.expected_response}', Got '{first_fail.actual_response}'"
-
-                if item.final_status == ValidationState.PASS:
-                    passed_count += 1
-                else:
-                    failed_count += 1
-
-            tc_reports.append(
-                TestCaseReport(
-                    testcase_name=name,
-                    status=status_str,
-                    execution_time_ms=exec_time,
-                    average_latency_ms=avg_lat,
-                    failure_reason=failure_reason,
-                )
-            )
+            tc_reports.append(report)
+            all_latencies.extend(lats)
+            if is_pass:
+                passed_count += 1
+            else:
+                failed_count += 1
 
         total_tc = len(tc_reports)
-        pass_rate = (passed_count / total_tc * 100.0) if total_tc > 0 else 0.0
-        avg_latency = (sum(all_latencies) / len(all_latencies)) if all_latencies else 0.0
+        pass_rate = (
+            (passed_count / total_tc * PERCENT_MULTIPLIER) if total_tc > 0 else 0.0
+        )
+        avg_latency = (
+            (sum(all_latencies) / len(all_latencies)) if all_latencies else 0.0
+        )
         max_latency = max(all_latencies) if all_latencies else 0.0
         min_latency = min(all_latencies) if all_latencies else 0.0
 
@@ -147,8 +185,8 @@ class ReportGenerator:
         self,
         summary: ReportSummary,
         metrics: ExecutionMetrics,
-        tc_reports: List[TestCaseReport],
-        output_path: Optional[Path] = None,
+        tc_reports: list[TestCaseReport],
+        output_path: Path | None = None,
     ) -> Path:
         """Generates a clean, professional HTML report.
 
@@ -257,8 +295,8 @@ class ReportGenerator:
 
     def generate_csv_report(
         self,
-        tc_reports: List[TestCaseReport],
-        output_path: Optional[Path] = None,
+        tc_reports: list[TestCaseReport],
+        output_path: Path | None = None,
     ) -> Path:
         """Generates a CSV report using standard python csv module.
 
@@ -299,9 +337,13 @@ class ReportGenerator:
 
     def generate_all(
         self,
-        summary_source: Union[SchedulerSummary, ExecutionSummary, Sequence[Union[ExecutionResult, ExecutionSummary]]],
-        total_wall_time_ms: Optional[float] = None,
-    ) -> Tuple[Path, Path]:
+        summary_source: (
+            SchedulerSummary
+            | ExecutionSummary
+            | Sequence[ExecutionResult | ExecutionSummary]
+        ),
+        total_wall_time_ms: float | None = None,
+    ) -> tuple[Path, Path]:
         """Convenience method to calculate metrics and generate both HTML and CSV reports.
 
         Args:
@@ -309,8 +351,9 @@ class ReportGenerator:
             total_wall_time_ms: Optional wall-clock time override.
 
         Returns:
-            Tuple[Path, Path]: (html_report_path, csv_report_path) tuple.
+            tuple[Path, Path]: (html_report_path, csv_report_path) tuple.
         """
+        results: Sequence[ExecutionResult | ExecutionSummary]
         if isinstance(summary_source, SchedulerSummary):
             results = summary_source.results
             wall_time = total_wall_time_ms or summary_source.total_execution_time_ms

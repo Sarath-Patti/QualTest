@@ -5,7 +5,7 @@ Business logic omitted as per v0.1 milestone specification.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from framework.logger import get_logger
 
@@ -20,7 +20,7 @@ class ExecutionConfig:
     parallel_jobs: int = 1
     timeout_seconds: int = 300
     stop_on_failure: bool = False
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -33,7 +33,7 @@ class ExecutionResult:
     failed_tests: int = 0
     skipped_tests: int = 0
     execution_time_seconds: float = 0.0
-    details: List[Dict[str, Any]] = field(default_factory=list)
+    details: list[dict[str, Any]] = field(default_factory=list)
 
 
 class TestExecutor:
@@ -43,7 +43,7 @@ class TestExecutor:
     or physical modem hardware targets.
     """
 
-    def __init__(self, config: Optional[ExecutionConfig] = None) -> None:
+    def __init__(self, config: ExecutionConfig | None = None) -> None:
         """Initializes the TestExecutor interface.
 
         Args:
@@ -59,20 +59,27 @@ class TestExecutor:
             suite_path: Path to the test suite definition.
 
         Returns:
-            ExecutionResult: Summary of execution results.
+            ExecutionResult: Summary result of suite execution.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.
         """
-        raise NotImplementedError("Test suite execution logic is not implemented in v0.1.")
+        raise NotImplementedError(
+            "Test suite execution logic is not implemented in v0.1."
+        )
 
-    def cancel_execution(self) -> bool:
-        """Cancels an in-progress test execution.
+    def run_testcase(self, testcase_id: str) -> bool:
+        """Executes a single test case.
+
+        Args:
+            testcase_id: Identifier of the test case to execute.
 
         Returns:
-            bool: True if cancellation succeeded.
+            bool: True if execution succeeded.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.
         """
-        raise NotImplementedError("Test cancellation logic is not implemented in v0.1.")
+        raise NotImplementedError(
+            "Test case execution logic is not implemented in v0.1."
+        )

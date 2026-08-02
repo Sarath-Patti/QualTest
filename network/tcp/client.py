@@ -4,9 +4,8 @@ Provides a socket client for sending commands and receiving responses from
 the TCP modem simulator.
 """
 
-from dataclasses import dataclass
 import socket
-from typing import Optional
+from dataclasses import dataclass
 
 from framework.logger import get_logger
 
@@ -26,16 +25,18 @@ class TCPClientConfig:
 class TCPClient:
     """TCP socket client for communicating with modem servers."""
 
-    def __init__(self, config: Optional[TCPClientConfig] = None) -> None:
+    def __init__(self, config: TCPClientConfig | None = None) -> None:
         """Initializes TCPClient.
 
         Args:
             config: Optional TCPClientConfig instance.
         """
         self.config = config or TCPClientConfig()
-        self._socket: Optional[socket.socket] = None
+        self._socket: socket.socket | None = None
         self._is_connected: bool = False
-        logger.debug("TCPClient initialized for target %s:%d", self.config.host, self.config.port)
+        logger.debug(
+            "TCPClient initialized for target %s:%d", self.config.host, self.config.port
+        )
 
     @property
     def is_connected(self) -> bool:
@@ -58,7 +59,12 @@ class TCPClient:
             if self._socket:
                 self._socket.close()
                 self._socket = None
-            logger.error("Failed to connect TCP client to %s:%d: %s", self.config.host, self.config.port, exc)
+            logger.error(
+                "Failed to connect TCP client to %s:%d: %s",
+                self.config.host,
+                self.config.port,
+                exc,
+            )
             raise
 
     def send(self, data: bytes) -> int:
@@ -74,7 +80,7 @@ class TCPClient:
             raise RuntimeError("TCP client is not connected.")
         return self._socket.send(data)
 
-    def receive(self, max_bytes: Optional[int] = None) -> bytes:
+    def receive(self, max_bytes: int | None = None) -> bytes:
         """Receives raw bytes from the TCP socket.
 
         Args:
@@ -121,3 +127,7 @@ class TCPClient:
             self._socket = None
         self._is_connected = False
         logger.debug("TCP client disconnected.")
+
+    def close(self) -> None:
+        """Alias method to close the TCP connection."""
+        self.disconnect()

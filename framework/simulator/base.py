@@ -4,9 +4,9 @@ Provides standard modem command mapping, response delay handling, failure inject
 and abstract interface methods for protocol-specific simulator servers.
 """
 
-from abc import ABC, abstractmethod
 import time
-from typing import Dict, Optional, TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from framework.logger import get_logger
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 logger = get_logger("Simulator.Base")
 
 # Standard modem event response mappings
-DEFAULT_MODEM_RESPONSES: Dict[str, str] = {
+DEFAULT_MODEM_RESPONSES: dict[str, str] = {
     "ATTACH_REQUEST": "ATTACH_ACCEPT",
     "DETACH_REQUEST": "DETACH_ACCEPT",
     "PING": "PONG",
@@ -41,7 +41,7 @@ class BaseSimulator(ABC):
         host: str = "127.0.0.1",
         port: int = 8080,
         response_delay_ms: float = 0.0,
-        failure_injector: Optional["FailureInjector"] = None,
+        failure_injector: "FailureInjector | None" = None,
     ) -> None:
         """Initializes the base simulator interface.
 
@@ -55,9 +55,9 @@ class BaseSimulator(ABC):
         self.port = port
         self.response_delay_ms = response_delay_ms
         self.failure_injector = failure_injector
-        self._custom_handlers: Dict[str, str] = dict(DEFAULT_MODEM_RESPONSES)
+        self._custom_handlers: dict[str, str] = dict(DEFAULT_MODEM_RESPONSES)
 
-    def set_failure_injector(self, failure_injector: Optional["FailureInjector"]) -> None:
+    def set_failure_injector(self, failure_injector: "FailureInjector | None") -> None:
         """Attaches a failure injector engine to the simulator.
 
         Args:

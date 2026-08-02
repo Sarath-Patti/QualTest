@@ -7,7 +7,7 @@ Delegates to ReportGenerator for concrete report generation.
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 from framework.logger import get_logger
 from framework.reporter.report_generator import ReportGenerator
@@ -37,7 +37,7 @@ class ReportSummary:
 class TestReporter:
     """Interface for generating test execution reports."""
 
-    def __init__(self, output_dir: Optional[Path] = None) -> None:
+    def __init__(self, output_dir: Path | None = None) -> None:
         """Initializes TestReporter interface.
 
         Args:

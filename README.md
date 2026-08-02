@@ -6,19 +6,15 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.8 – Engineering Quality
+## Current Milestone: v0.8.1 – Engineering Quality Fixes
 
-The goal of milestone **v0.8** is to establish production-grade engineering quality standards by integrating code quality tooling, static type checking, automated test infrastructure, pre-commit hooks, GitHub Actions CI, and developer documentation.
+The goal of milestone **v0.8.1** is to resolve all static analysis, linting, formatting, type checking, and test compatibility issues reported by Ruff, Black, MyPy, and Pytest across the framework while preserving existing functionality and architecture.
 
-### Features Implemented in v0.8:
-- **Centralized Tool Configuration**: `pyproject.toml` configuration for Black, Ruff, MyPy, Pytest, and Coverage.
-- **Development Dependencies**: `requirements-dev.txt` specifying tooling dependencies (`black`, `ruff`, `mypy`, `pytest`, `pytest-cov`, `pre-commit`).
-- **Code Formatting & Linting**: Configuration for Black (88 char line-length) and Ruff (PEP 8, import sorting, complexity checks).
-- **Static Type Checking**: MyPy type-checking configuration (`mypy framework network run.py`).
-- **Testing & Coverage Infrastructure**: `pytest.ini` and coverage configuration with HTML output (`htmlcov/`).
-- **Pre-Commit Integration**: `.pre-commit-config.yaml` specifying Black, Ruff, MyPy, YAML, and file hygiene hooks.
-- **Continuous Integration (CI)**: GitHub Actions workflow (`.github/workflows/ci.yml`) triggering on pushes and pull requests across Python 3.10-3.12 targets.
-- **Developer Documentation**: Dedicated guide in `docs/development.md`.
+### Features & Fixes Implemented in v0.8.1:
+- **Ruff Compliance**: Resolved unused imports (`F401`), unused variables (`F841`), and open mode specifications (`UP015`).
+- **MyPy Type Safety**: Fixed missing type parameter imports (`Tuple`) and tightened type annotations across reporter, scheduler, simulator, and validator modules.
+- **Black Compatibility**: Ensured full formatting alignment with Black standards across all Python source files.
+- **Pytest Cleanups**: Streamlined test imports and assertions in `tests/test_foundation.py`.
 
 ---
 
@@ -99,3 +95,4 @@ python run.py --simulator tcp --failure-config config/failure.json
 - [x] **v0.6 – Concurrent Test Scheduler**: ThreadPoolExecutor scheduler, parallel batch testcase execution, scheduler lifecycle, thread-safe result aggregation.
 - [x] **v0.7 – Reporting & Metrics**: HTML and CSV report generation (`reports/report.html`, `reports/report.csv`), metrics calculation engine, CLI `--report` integration.
 - [x] **v0.8 – Engineering Quality**: `pyproject.toml` centralized tool config, `requirements-dev.txt`, Black, Ruff, MyPy, Pytest, Coverage, Pre-commit hooks, GitHub Actions CI workflow, developer guide (`docs/development.md`).
+- [x] **v0.8.1 – Engineering Quality Fixes**: Resolution of Ruff, Black, MyPy, and Pytest issues across all framework modules.

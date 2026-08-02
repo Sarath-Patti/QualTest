@@ -5,7 +5,6 @@ the QualTest framework.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Tuple
 
 
 @dataclass(frozen=True)
@@ -25,6 +24,7 @@ class TestStep:
 
 @dataclass(frozen=True)
 class TestCase:
+    __test__ = False
     """Represents a validated testcase configuration.
 
     Attributes:
@@ -45,7 +45,7 @@ class TestCase:
     port: int
     timeout: float
     retry: int
-    steps: Tuple[TestStep, ...] = field(default_factory=tuple)
+    steps: tuple[TestStep, ...] = field(default_factory=tuple)
 
     @property
     def step_count(self) -> int:

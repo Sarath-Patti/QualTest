@@ -1,103 +1,96 @@
-"""Centralized configuration management for QualTest v2 framework.
+"""Centralized configuration system for QualTest framework.
 
-Provides an immutable, dataclass-based configuration structure with
-support for environment variable overrides and sensible default paths.
+Provides immutable settings dataclass and environment variable parsing logic.
 """
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-# Determine root directory of the project
-ROOT_DIR: Path = Path(__file__).resolve().parent.parent.parent
+DEFAULT_LOG_MAX_BYTES: int = 10_485_760  # 10MB
+DEFAULT_LOG_BACKUP_COUNT: int = 5
 
 
 @dataclass(frozen=True)
 class Settings:
-    """Immutable application settings dataclass.
+    """Immutable configuration container for QualTest v2 framework.
 
     Attributes:
-        app_name: Name of the application framework.
-        version: Current framework version.
-        environment: Current operating environment (e.g. development, production).
-        base_dir: Absolute path to project root.
-        logs_dir: Absolute path to logs directory.
-        reports_dir: Absolute path to reports directory.
-        testcases_dir: Absolute path to testcases directory.
-        log_level: Configured logging level (e.g., DEBUG, INFO, WARNING, ERROR).
-        log_file_max_bytes: Maximum log file size before rotation in bytes.
-        log_file_backup_count: Number of rotating log backup files to retain.
+        app_name: Application name identifier.
+        version: Framework version string.
+        environment: Execution environment string (e.g. development, production).
+        base_dir: Root directory path of the project.
+        logs_dir: Directory path for framework log output.
+        reports_dir: Directory path for test report output.
+        testcases_dir: Directory path containing JSON testcases.
+        log_level: Logging level string.
+        log_file_max_bytes: Maximum size of log file before rotation.
+        log_file_backup_count: Number of rotated log backup files to retain.
     """
 
     app_name: str = "QualTest v2"
-    version: str = "0.1.0"
+    version: str = "0.8.1"
     environment: str = "development"
-    base_dir: Path = ROOT_DIR
-    logs_dir: Path = ROOT_DIR / "logs"
-    reports_dir: Path = ROOT_DIR / "reports"
-    testcases_dir: Path = ROOT_DIR / "testcases"
+    base_dir: Path = Path(__file__).resolve().parent.parent.parent
+    logs_dir: Path = base_dir / "logs"
+    reports_dir: Path = base_dir / "reports"
+    testcases_dir: Path = base_dir / "testcases"
     log_level: str = "INFO"
-    log_file_max_bytes: int = 10 * 1024 * 1024  # 10 MB
-    log_file_backup_count: int = 5
+    log_file_max_bytes: int = DEFAULT_LOG_MAX_BYTES
+    log_file_backup_count: int = DEFAULT_LOG_BACKUP_COUNT
+
+    _instance: "Settings | None" = None
 
     @classmethod
-    def load_from_env(cls, custom_root: Optional[Path] = None) -> "Settings":
-        """Factory method to build Settings instance with environment variable overrides.
+    def load_from_env(cls, env_path: str | Path | None = None) -> "Settings":
+        """Factory method to construct Settings from environment variables.
 
         Args:
-            custom_root: Optional custom root path override.
+            env_path: Optional path override for project base directory.
 
         Returns:
-            Settings: An initialized immutable Settings instance.
+            Settings: Instantiated Settings instance populated from environment.
         """
-        root = custom_root or ROOT_DIR
+        if env_path is not None:
+            base_dir = Path(env_path).resolve()
+        else:
+            base_dir = Path(
+                os.getenv(
+                    "QUALTEST_BASE_DIR",
+                    str(Path(__file__).resolve().parent.parent.parent),
+                )
+            ).resolve()
 
-        # Environment variable overrides
-        env_name = os.getenv("QUALTEST_ENV", "development")
+        logs_dir = Path(
+            os.getenv("QUALTEST_LOGS_DIR", str(base_dir / "logs"))
+        ).resolve()
+        reports_dir = Path(
+            os.getenv("QUALTEST_REPORTS_DIR", str(base_dir / "reports"))
+        ).resolve()
+        testcases_dir = Path(
+            os.getenv("QUALTEST_TESTCASES_DIR", str(base_dir / "testcases"))
+        ).resolve()
         log_level = os.getenv("QUALTEST_LOG_LEVEL", "INFO").upper()
-
-        logs_dir_str = os.getenv("QUALTEST_LOGS_DIR")
-        logs_dir = Path(logs_dir_str).resolve() if logs_dir_str else root / "logs"
-
-        reports_dir_str = os.getenv("QUALTEST_REPORTS_DIR")
-        reports_dir = (
-            Path(reports_dir_str).resolve() if reports_dir_str else root / "reports"
-        )
-
-        testcases_dir_str = os.getenv("QUALTEST_TESTCASES_DIR")
-        testcases_dir = (
-            Path(testcases_dir_str).resolve()
-            if testcases_dir_str
-            else root / "testcases"
-        )
 
         try:
             max_bytes = int(
-                os.getenv("QUALTEST_LOG_MAX_BYTES", str(10 * 1024 * 1024))
+                os.getenv("QUALTEST_LOG_MAX_BYTES", str(DEFAULT_LOG_MAX_BYTES))
             )
         except ValueError:
-            max_bytes = 10 * 1024 * 1024
+            max_bytes = DEFAULT_LOG_MAX_BYTES
 
         try:
-            backup_count = int(os.getenv("QUALTEST_LOG_BACKUP_COUNT", "5"))
+            backup_count = int(
+                os.getenv("QUALTEST_LOG_BACKUP_COUNT", str(DEFAULT_LOG_BACKUP_COUNT))
+            )
         except ValueError:
-            backup_count = 5
-
-        # Read version from VERSION file if present
-        version_file = root / "VERSION"
-        version_str = "0.1.0"
-        if version_file.is_file():
-            try:
-                version_str = version_file.read_text(encoding="utf-8").strip()
-            except Exception:
-                pass
+            backup_count = DEFAULT_LOG_BACKUP_COUNT
 
         return cls(
-            app_name="QualTest v2",
-            version=version_str,
-            environment=env_name,
-            base_dir=root,
+            app_name=os.getenv("QUALTEST_APP_NAME", "QualTest v2"),
+            version=os.getenv("QUALTEST_VERSION", "0.8.1"),
+            environment=os.getenv("QUALTEST_ENV", "development"),
+            base_dir=base_dir,
             logs_dir=logs_dir,
             reports_dir=reports_dir,
             testcases_dir=testcases_dir,
@@ -107,16 +100,22 @@ class Settings:
         )
 
 
-_global_settings: Optional[Settings] = None
-
-
 def get_settings() -> Settings:
     """Retrieves the active global configuration settings instance.
 
     Returns:
         Settings: Global immutable settings instance.
     """
-    global _global_settings
-    if _global_settings is None:
-        _global_settings = Settings.load_from_env()
-    return _global_settings
+    if Settings._instance is None:
+        Settings._instance = Settings.load_from_env()
+    return Settings._instance
+
+
+def set_settings(settings: Settings) -> None:
+    """Explicitly sets the active global settings instance."""
+    Settings._instance = settings
+
+
+def reset_settings() -> None:
+    """Resets the active global settings instance to None."""
+    Settings._instance = None

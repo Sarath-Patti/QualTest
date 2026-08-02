@@ -7,7 +7,6 @@ Business logic omitted as per v0.1 milestone specification.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional
 
 from framework.logger import get_logger
 
@@ -39,7 +38,7 @@ class SimulatorConfig:
 class ModemSimulator:
     """Interface for simulating modem hardware responses and state transitions."""
 
-    def __init__(self, config: Optional[SimulatorConfig] = None) -> None:
+    def __init__(self, config: SimulatorConfig | None = None) -> None:
         """Initializes the ModemSimulator interface.
 
         Args:
@@ -59,26 +58,26 @@ class ModemSimulator:
         return self._state
 
     def send_at_command(self, command: str) -> str:
-        """Sends an AT command string to the simulated modem interface.
+        """Simulates AT command processing and returns modem response string.
 
         Args:
-            command: AT command string (e.g., 'AT+CSQ').
+            command: AT command payload (e.g. 'AT+CSQ').
 
         Returns:
-            str: Simulated modem response string.
+            str: Simulated AT response text.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.
         """
-        raise NotImplementedError("Modem simulator logic is not implemented in v0.1.")
+        raise NotImplementedError("AT command simulation is not implemented in v0.1.")
 
-    def set_network_state(self, state: ModemState) -> None:
-        """Sets the simulated modem network registration state.
+    def set_state(self, new_state: ModemState) -> None:
+        """Forces a state transition on the simulated modem.
 
         Args:
-            state: Target ModemState to simulate.
+            new_state: Target ModemState to transition into.
 
         Raises:
             NotImplementedError: Business logic deferred to future milestone.
         """
-        raise NotImplementedError("Modem simulator state changes are not implemented in v0.1.")
+        raise NotImplementedError("State transition logic is not implemented in v0.1.")

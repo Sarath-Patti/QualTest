@@ -6,7 +6,7 @@ validating JSON syntax, enforcing strict schema rules, and instantiating TestCas
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Set, Union
+from typing import Any
 
 from framework.logger import get_logger
 from framework.parser.exceptions import (
@@ -20,8 +20,8 @@ from framework.parser.models import TestCase, TestStep
 
 logger = get_logger("Parser.JSONLoader")
 
-SUPPORTED_PROTOCOLS: Set[str] = {"TCP", "UDP"}
-REQUIRED_TOP_LEVEL_FIELDS: Set[str] = {
+SUPPORTED_PROTOCOLS: set[str] = {"TCP", "UDP"}
+REQUIRED_TOP_LEVEL_FIELDS: set[str] = {
     "name",
     "description",
     "protocol",
@@ -31,12 +31,14 @@ REQUIRED_TOP_LEVEL_FIELDS: Set[str] = {
     "retry",
     "steps",
 }
+MIN_PORT: int = 1
+MAX_PORT: int = 65535
 
 
 class JSONLoader:
     """Loads and validates JSON testcases from the filesystem."""
 
-    def load(self, file_path: Union[str, Path]) -> TestCase:
+    def load(self, file_path: str | Path) -> TestCase:
         """Loads a JSON testcase file, validates its schema, and returns a TestCase model.
 
         Args:
@@ -63,7 +65,7 @@ class JSONLoader:
 
         # 2. Read and Parse JSON Syntax
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as exc:
             msg = f"Invalid JSON syntax in testcase file {path}: {exc.msg} (line {exc.lineno}, col {exc.colno})"
@@ -85,38 +87,29 @@ class JSONLoader:
         )
         return testcase
 
-    def validate_schema(self, data: Any, source_path: Path) -> TestCase:
-        """Validates raw dictionary structure against QualTest schema requirements.
-
-        Args:
-            data: Loaded raw JSON data.
-            source_path: File path reference for error reporting.
-
-        Returns:
-            TestCase: Constructed TestCase instance.
-        """
+    def _validate_top_level(self, data: Any) -> dict[str, Any]:
+        """Validates that root element is a dict containing required top-level fields."""
         if not isinstance(data, dict):
             msg = f"Root of testcase JSON must be an object/dict, got {type(data).__name__}"
             logger.error("Validation failure: %s", msg)
             raise InvalidSchemaError(msg)
 
-        # Validate required top-level fields
         missing_fields = REQUIRED_TOP_LEVEL_FIELDS - set(data.keys())
         if missing_fields:
-            msg = f"Missing required fields in testcase schema: {sorted(missing_fields)}"
+            msg = (
+                f"Missing required fields in testcase schema: {sorted(missing_fields)}"
+            )
             logger.error("Validation failure: %s", msg)
             raise InvalidSchemaError(msg)
 
+        return data
+
+    def _validate_metadata(self, data: dict[str, Any]) -> tuple[str, str, str]:
+        """Validates name, description, and protocol metadata fields."""
         name = data["name"]
         description = data["description"]
         protocol = str(data["protocol"]).upper()
-        host = data["host"]
-        port = data["port"]
-        timeout = data["timeout"]
-        retry = data["retry"]
-        raw_steps = data["steps"]
 
-        # Validate String Types
         if not isinstance(name, str) or not name.strip():
             msg = "Field 'name' must be a non-empty string."
             logger.error("Validation failure: %s", msg)
@@ -127,30 +120,40 @@ class JSONLoader:
             logger.error("Validation failure: %s", msg)
             raise InvalidSchemaError(msg)
 
-        if not isinstance(host, str) or not host.strip():
-            msg = "Field 'host' must be a non-empty string."
-            logger.error("Validation failure: %s", msg)
-            raise InvalidConfigurationError(msg)
-
-        # Validate Supported Protocol
         if protocol not in SUPPORTED_PROTOCOLS:
             msg = f"Unsupported protocol '{protocol}'. Supported protocols: {sorted(SUPPORTED_PROTOCOLS)}"
             logger.error("Validation failure: %s", msg)
             raise InvalidProtocolError(msg)
 
-        # Validate Port Range (1 - 65535)
+        return name, description, protocol
+
+    def _validate_network_config(
+        self, data: dict[str, Any]
+    ) -> tuple[str, int, float, int]:
+        """Validates host, port, timeout, and retry network parameters."""
+        host = data["host"]
+        port = data["port"]
+        timeout = data["timeout"]
+        retry = data["retry"]
+
+        if not isinstance(host, str) or not host.strip():
+            msg = "Field 'host' must be a non-empty string."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidConfigurationError(msg)
+
         if not isinstance(port, int) or isinstance(port, bool):
             msg = f"Field 'port' must be an integer, got {type(port).__name__}"
             logger.error("Validation failure: %s", msg)
             raise InvalidConfigurationError(msg)
-        if not (1 <= port <= 65535):
-            msg = f"Port number {port} is out of valid range (1 - 65535)."
+        if not (MIN_PORT <= port <= MAX_PORT):
+            msg = f"Port number {port} is out of valid range ({MIN_PORT} - {MAX_PORT})."
             logger.error("Validation failure: %s", msg)
             raise InvalidConfigurationError(msg)
 
-        # Validate Timeout (> 0)
         if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
-            msg = f"Field 'timeout' must be a numeric value, got {type(timeout).__name__}"
+            msg = (
+                f"Field 'timeout' must be a numeric value, got {type(timeout).__name__}"
+            )
             logger.error("Validation failure: %s", msg)
             raise InvalidConfigurationError(msg)
         if timeout <= 0:
@@ -158,7 +161,6 @@ class JSONLoader:
             logger.error("Validation failure: %s", msg)
             raise InvalidConfigurationError(msg)
 
-        # Validate Retry (>= 0)
         if not isinstance(retry, int) or isinstance(retry, bool):
             msg = f"Field 'retry' must be an integer, got {type(retry).__name__}"
             logger.error("Validation failure: %s", msg)
@@ -168,55 +170,77 @@ class JSONLoader:
             logger.error("Validation failure: %s", msg)
             raise InvalidConfigurationError(msg)
 
-        # Validate Non-empty Steps list
+        return host, port, float(timeout), retry
+
+    def _validate_step_entry(self, step_data: Any, idx: int) -> TestStep:
+        """Validates an individual test step entry."""
+        if not isinstance(step_data, dict):
+            msg = f"Step #{idx} must be a dictionary object."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        if "send" not in step_data or "expect" not in step_data:
+            msg = f"Step #{idx} missing required 'send' or 'expect' fields."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        send_val = step_data["send"]
+        expect_val = step_data["expect"]
+        delay_val = step_data.get("delay", 0.0)
+
+        if not isinstance(send_val, str):
+            msg = f"Step #{idx} 'send' must be a string."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        if not isinstance(expect_val, str):
+            msg = f"Step #{idx} 'expect' must be a string."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        if not isinstance(delay_val, (int, float)) or isinstance(delay_val, bool):
+            msg = f"Step #{idx} 'delay' must be a numeric value."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        if delay_val < 0:
+            msg = f"Step #{idx} 'delay' cannot be negative."
+            logger.error("Validation failure: %s", msg)
+            raise InvalidSchemaError(msg)
+
+        return TestStep(
+            send=send_val,
+            expect=expect_val,
+            delay=float(delay_val),
+        )
+
+    def _validate_steps(self, raw_steps: Any) -> tuple[TestStep, ...]:
+        """Validates the list of step dictionaries."""
         if not isinstance(raw_steps, list) or len(raw_steps) == 0:
             msg = "Field 'steps' must be a non-empty list."
             logger.error("Validation failure: %s", msg)
             raise InvalidSchemaError(msg)
 
-        steps: List[TestStep] = []
+        steps: list[TestStep] = []
         for idx, step_data in enumerate(raw_steps, start=1):
-            if not isinstance(step_data, dict):
-                msg = f"Step #{idx} must be a dictionary object."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
+            steps.append(self._validate_step_entry(step_data, idx))
 
-            if "send" not in step_data or "expect" not in step_data:
-                msg = f"Step #{idx} missing required 'send' or 'expect' fields."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
+        return tuple(steps)
 
-            send_val = step_data["send"]
-            expect_val = step_data["expect"]
-            delay_val = step_data.get("delay", 0.0)
+    def validate_schema(self, data: Any, source_path: Path) -> TestCase:
+        """Validates raw dictionary structure against QualTest schema requirements.
 
-            if not isinstance(send_val, str):
-                msg = f"Step #{idx} 'send' must be a string."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
+        Args:
+            data: Loaded raw JSON data.
+            source_path: File path reference for error reporting.
 
-            if not isinstance(expect_val, str):
-                msg = f"Step #{idx} 'expect' must be a string."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
-
-            if not isinstance(delay_val, (int, float)) or isinstance(delay_val, bool):
-                msg = f"Step #{idx} 'delay' must be a numeric value."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
-
-            if delay_val < 0:
-                msg = f"Step #{idx} 'delay' cannot be negative."
-                logger.error("Validation failure: %s", msg)
-                raise InvalidSchemaError(msg)
-
-            steps.append(
-                TestStep(
-                    send=send_val,
-                    expect=expect_val,
-                    delay=float(delay_val),
-                )
-            )
+        Returns:
+            TestCase: Constructed TestCase instance.
+        """
+        valid_data = self._validate_top_level(data)
+        name, description, protocol = self._validate_metadata(valid_data)
+        host, port, timeout, retry = self._validate_network_config(valid_data)
+        steps = self._validate_steps(valid_data["steps"])
 
         return TestCase(
             name=name,
@@ -224,20 +248,20 @@ class JSONLoader:
             protocol=protocol,
             host=host,
             port=port,
-            timeout=float(timeout),
+            timeout=timeout,
             retry=retry,
-            steps=tuple(steps),
+            steps=steps,
         )
 
 
-def load_testcase(file_path: Union[str, Path]) -> TestCase:
+def load_testcase(file_path: str | Path) -> TestCase:
     """Public API function to load and validate a JSON testcase file.
 
     Args:
-        file_path: Path to the JSON testcase configuration.
+        file_path: Path to target JSON testcase file.
 
     Returns:
-        TestCase: Loaded and validated TestCase object.
+        TestCase: Validated testcase model.
     """
     loader = JSONLoader()
     return loader.load(file_path)
