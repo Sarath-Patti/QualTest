@@ -6,65 +6,67 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.7 – Reporting & Metrics
+## Current Milestone: v0.8 – Engineering Quality
 
-The goal of milestone **v0.7** is to build a modular reporting engine that transforms test execution and validation results into structured HTML and CSV reports alongside calculated execution metrics.
+The goal of milestone **v0.8** is to establish production-grade engineering quality standards by integrating code quality tooling, static type checking, automated test infrastructure, pre-commit hooks, GitHub Actions CI, and developer documentation.
 
-### Features Implemented in v0.7:
-- **Reporting Engine**: Core `ReportGenerator` aggregating execution metrics and producing reports.
-- **Report Data Models**: Immutable dataclass models (`ReportSummary`, `TestCaseReport`, `ExecutionMetrics`).
-- **HTML Report Generation**: Formatted HTML report saved at `reports/report.html` with status badges, summary metrics, and result tables.
-- **CSV Report Generation**: Standard CSV report saved at `reports/report.csv` using Python's standard `csv` module.
-- **Metrics Calculation**: Automatic calculation of pass percentage (`pass_rate`), minimum, maximum, and average response latencies (`latency_ms`), and total wall-clock duration.
-- **CLI Integration**: Generate execution reports via `python run.py --run-all testcases/ --report`.
-
----
-
-## Reporting Architecture
-
-```
-                             +-----------------------+
-                             |        run.py         |
-                             |      (--report)       |
-                             +-----------+-----------+
-                                         |
-                                         v
-                             +-----------------------+
-                             |  framework.reporter   |
-                             |  (ReportGenerator)    |
-                             +-----------+-----------+
-                                         |
-                                         v
-                             +-----------------------+
-                             |   Calculate Metrics   |
-                             |  (ExecutionMetrics)   |
-                             +-----------+-----------+
-                                         |
-                       +-----------------+-----------------+
-                       |                                   |
-           +-----------v-----------+           +-----------v-----------+
-           |   HTML Report Writer  |           |   CSV Report Writer   |
-           | (reports/report.html) |           |  (reports/report.csv) |
-           +-----------------------+           +-----------------------+
-```
+### Features Implemented in v0.8:
+- **Centralized Tool Configuration**: `pyproject.toml` configuration for Black, Ruff, MyPy, Pytest, and Coverage.
+- **Development Dependencies**: `requirements-dev.txt` specifying tooling dependencies (`black`, `ruff`, `mypy`, `pytest`, `pytest-cov`, `pre-commit`).
+- **Code Formatting & Linting**: Configuration for Black (88 char line-length) and Ruff (PEP 8, import sorting, complexity checks).
+- **Static Type Checking**: MyPy type-checking configuration (`mypy framework network run.py`).
+- **Testing & Coverage Infrastructure**: `pytest.ini` and coverage configuration with HTML output (`htmlcov/`).
+- **Pre-Commit Integration**: `.pre-commit-config.yaml` specifying Black, Ruff, MyPy, YAML, and file hygiene hooks.
+- **Continuous Integration (CI)**: GitHub Actions workflow (`.github/workflows/ci.yml`) triggering on pushes and pull requests across Python 3.10-3.12 targets.
+- **Developer Documentation**: Dedicated guide in `docs/development.md`.
 
 ---
 
-## Collected Metrics & Generated Reports
+## Code Quality & Development Environment
 
-### Metrics Calculated
+QualTest enforces high project standards through automated tooling:
 
-| Metric | Type | Description |
-| :--- | :--- | :--- |
-| `pass_rate` | Float | Percentage of testcases that passed validation (`0.0 - 100.0%`). |
-| `average_latency_ms` | Float | Mean command response latency across all steps in milliseconds. |
-| `maximum_latency_ms` | Float | Peak command response latency across all steps in milliseconds. |
-| `minimum_latency_ms` | Float | Lowest command response latency across all steps in milliseconds. |
-| `total_execution_time_ms` | Float | Overall wall-clock execution duration in milliseconds. |
+| Tool | Purpose | Command | Configuration |
+| :--- | :--- | :--- | :--- |
+| **Black** | Code Formatter | `black --check .` | `pyproject.toml` |
+| **Ruff** | Linter & Import Sorter | `ruff check .` | `pyproject.toml` |
+| **MyPy** | Static Type Checker | `mypy framework network run.py` | `pyproject.toml` |
+| **Pytest** | Test Runner | `pytest` | `pytest.ini` / `pyproject.toml` |
+| **Coverage** | Code Coverage Engine | `pytest --cov=framework --cov-report=html` | `pyproject.toml` |
+| **Pre-Commit** | Git Hook Manager | `pre-commit run --all-files` | `.pre-commit-config.yaml` |
 
-### Generated Reports Output
-- **HTML Report**: `reports/report.html`
-- **CSV Report**: `reports/report.csv`
+---
+
+## Development Setup & Developer Guide
+
+Refer to [docs/development.md](file:///Users/sarathpatti/Documents/QualTest/docs/development.md) for full developer environment setup and contribution procedures.
+
+### Quick Start for Developers
+```bash
+# Set up virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Configure pre-commit git hooks
+pre-commit install
+
+# Run static analysis & tests
+ruff check .
+black --check .
+mypy framework network run.py
+pytest
+```
+
+---
+
+## Continuous Integration (CI)
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every `push` and `pull_request` to `main`:
+1. **Linting Check**: `ruff check .`
+2. **Format Check**: `black --check .`
+3. **Type Check**: `mypy framework network run.py`
+4. **Unit Tests & Coverage**: `pytest --cov=framework --cov=network`
 
 ---
 
@@ -96,3 +98,4 @@ python run.py --simulator tcp --failure-config config/failure.json
 - [x] **v0.5 – Failure Injection Engine**: Configurable failure injector, simulated network anomalies, CLI failure config support.
 - [x] **v0.6 – Concurrent Test Scheduler**: ThreadPoolExecutor scheduler, parallel batch testcase execution, scheduler lifecycle, thread-safe result aggregation.
 - [x] **v0.7 – Reporting & Metrics**: HTML and CSV report generation (`reports/report.html`, `reports/report.csv`), metrics calculation engine, CLI `--report` integration.
+- [x] **v0.8 – Engineering Quality**: `pyproject.toml` centralized tool config, `requirements-dev.txt`, Black, Ruff, MyPy, Pytest, Coverage, Pre-commit hooks, GitHub Actions CI workflow, developer guide (`docs/development.md`).
