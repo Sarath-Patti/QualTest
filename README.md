@@ -6,96 +6,102 @@ QualTest is a modular, high-performance test automation framework designed for v
 
 ---
 
-## Current Milestone: v0.3 – Network Simulator
+## Current Milestone: v0.4 – Validation Engine
 
-The goal of milestone **v0.3** is to build a reusable TCP/UDP-based modem network simulator capable of emulating basic modem communication for future automated validation.
+The goal of milestone **v0.4** is to build a reusable validation engine capable of comparing simulator responses against expected outputs defined in JSON testcases, measuring step latencies, and producing structured execution summaries.
 
-### Features Implemented in v0.3:
-- **Simulator Abstraction**: Base simulator class (`BaseSimulator`) and protocol-agnostic controller (`NetworkSimulator`).
-- **TCP Simulator Server & Client**: Multithreaded TCP server (`TCPServer`) and client (`TCPClient`).
-- **UDP Simulator Server & Client**: Datagram UDP server (`UDPServer`) and client (`UDPClient`).
-- **Modem Events**: Automated mapping for modem events (`ATTACH_REQUEST`, `DETACH_REQUEST`, `PING`, `STATUS`, `UNKNOWN_COMMAND`).
-- **Configurable Settings**: Support for configurable host, port, protocol, and simulated response latency.
-- **CLI Integration**: Run TCP or UDP simulator via `python run.py --simulator tcp` or `python run.py --simulator udp` with graceful shutdown handling.
-- **Sample Client Script**: Lightweight utility (`scripts/sample_client.py`) for manual command testing over TCP/UDP.
+### Features Implemented in v0.4:
+- **Validation Engine**: Core `ValidationEngine` executing testcase steps against TCP/UDP targets.
+- **Validation States**: Enum-based state outcomes (`PASS`, `FAIL`, `ERROR`, `TIMEOUT`, `UNKNOWN`).
+- **Data Models**: Immutable dataclass models (`ValidationStep`, `ValidationResult`, `ExecutionSummary`).
+- **Latency Measurement**: High-precision per-step command latency measurement (`latency_ms`).
+- **Custom Exceptions**: Specialized exception hierarchy (`ValidationError`, `ResponseMismatchError`, `TimeoutError`, `ExecutionError`).
+- **Public Validation API**: Public entry point `validate(testcase)`.
+- **CLI Integration**: Run testcase execution and validation via `python run.py --run <testcase_path>`.
 
 ---
 
-## Network Simulator Architecture
+## Validation Engine Architecture
 
 ```
                              +-----------------------+
                              |        run.py         |
-                             |  (--simulator tcp|udp) |
+                             |  (--run <testcase>)   |
                              +-----------+-----------+
                                          |
                                          v
                              +-----------------------+
-                             |   NetworkSimulator    |
-                             | (network_simulator.py)|
+                             |  framework.validator  |
+                             |  (validate API call)  |
                              +-----------+-----------+
-                                         |
-                       +-----------------+-----------------+
-                       |                                   |
-           +-----------v-----------+           +-----------v-----------+
-           |       TCPServer       |           |       UDPServer       |
-           |  (network/tcp/server) |           |  (network/udp/server) |
-           +-----------+-----------+           +-----------+-----------+
-                       |                                   |
-                       +-----------------+-----------------+
                                          |
                                          v
                              +-----------------------+
-                             |     BaseSimulator     |
-                             |   (Modem Event Engine)|
+                             |   ValidationEngine    |
+                             |      (engine.py)      |
+                             +-----------+-----------+
+                                         |
+            +----------------------------+----------------------------+
+            |                            |                            |
++-----------v-----------+    +-----------v-----------+    +-----------v-----------+
+| Network Protocol      |    | Latency Measurement   |    | Validation States     |
+| (TCPClient/UDPClient) |    | (time.perf_counter)   |    | (PASS/FAIL/TIMEOUT..) |
++-----------+-----------+    +-----------+-----------+    +-----------+-----------+
+            |                            |                            |
+            +----------------------------+----------------------------+
+                                         |
+                                         v
+                             +-----------------------+
+                             |   ExecutionSummary    |
+                             |      (models.py)      |
                              +-----------------------+
 ```
 
 ---
 
-## Supported Modem Commands & Responses
+## Validation Execution Flow
 
-The simulator provides built-in responses for common modem control events:
+1. **Testcase Loading**: Load and parse JSON testcase using `load_testcase()`.
+2. **Network Connection**: Connect to target `host:port` via `TCPClient` or `UDPClient`.
+3. **Step Execution Loop**:
+   - Apply optional step delay.
+   - Record start timestamp.
+   - Send command string over socket.
+   - Receive response string (or handle socket timeout/error).
+   - Record end timestamp and compute `latency_ms`.
+4. **Step Comparison**: Compare `actual_response` against `expected_response`.
+5. **State Assignment**: Assign `PASS`, `FAIL`, `TIMEOUT`, or `ERROR` state.
+6. **Summary Generation**: Aggregate metrics into an immutable `ExecutionSummary`.
 
-| Incoming Command | Simulated Response | Description |
+---
+
+## Validation States
+
+| State | Enum Value | Description |
 | :--- | :--- | :--- |
-| `ATTACH_REQUEST` | `ATTACH_ACCEPT` | Simulates EPS/GPRS network attach request. |
-| `DETACH_REQUEST` | `DETACH_ACCEPT` | Simulates network detach request. |
-| `PING` | `PONG` | Simulates data channel connectivity check. |
-| `STATUS` | `MODEM_READY` | Simulates modem operating state query. |
-| *(Any Other Command)* | `UNKNOWN_COMMAND` | Default response for unhandled commands. |
+| **PASS** | `ValidationState.PASS` | Actual response matched expected response exactly. |
+| **FAIL** | `ValidationState.FAIL` | Actual response differed from expected response. |
+| **TIMEOUT** | `ValidationState.TIMEOUT` | Command execution or socket response timed out. |
+| **ERROR** | `ValidationState.ERROR` | Connection or socket error occurred during step. |
+| **UNKNOWN** | `ValidationState.UNKNOWN` | Uninitialized or indeterminate step status. |
 
 ---
 
-## Starting the Simulator
+## Executing & Validating a Testcase
 
-### Run TCP Modem Simulator
+### Run Testcase Validation
 ```bash
-python run.py --simulator tcp
+python run.py --run testcases/attach_success.json
 ```
 
-### Run UDP Modem Simulator
-```bash
-python run.py --simulator udp
-```
-
-### Manual Testing with Sample Client
-In a separate terminal window:
-
-```bash
-# Test TCP Simulator
-python scripts/sample_client.py --protocol tcp --command ATTACH_REQUEST
-
-# Test UDP Simulator
-python scripts/sample_client.py --protocol udp --command PING
-```
-
----
-
-## JSON Testcase Inspection & Validation
-
+### Inspect Testcase Schema Only
 ```bash
 python run.py --test testcases/attach_success.json
+```
+
+### Start Modem Network Simulator
+```bash
+python run.py --simulator tcp
 ```
 
 ---
@@ -105,3 +111,4 @@ python run.py --test testcases/attach_success.json
 - [x] **v0.1 – Project Foundation**: Directory structure, configuration system, logging subsystem, CLI entry point, public module interfaces.
 - [x] **v0.2 – JSON Test Runner**: JSON loader, schema validation, exception hierarchy, data models, sample testcases, CLI integration.
 - [x] **v0.3 – Network Simulator**: TCP/UDP simulator servers, modem event engine, latency simulation, sample client, CLI integration.
+- [x] **v0.4 – Validation Engine**: Step validation engine, latency measurement, validation state Enums, execution summary, CLI execution support.

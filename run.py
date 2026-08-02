@@ -3,10 +3,11 @@
 
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
-JSON testcase loading, schema validation, and modem network simulation.
+JSON testcase loading, modem network simulation, and testcase execution validation.
 """
 
 import argparse
+import socket
 import sys
 import time
 from typing import List, Optional
@@ -15,6 +16,7 @@ from framework.config import Settings, get_settings
 from framework.logger import get_logger, setup_logger
 from framework.parser import TestCaseError, load_testcase
 from framework.simulator import NetworkSimulator
+from framework.validator import ValidationState, validate
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -44,7 +46,15 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         "--test",
         type=str,
         default=None,
-        help="Path to JSON testcase file to load and validate",
+        help="Path to JSON testcase file to load and validate schema",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--run",
+        type=str,
+        default=None,
+        help="Path to JSON testcase file to load, execute, and validate",
     )
 
     parser.add_argument(
@@ -104,6 +114,20 @@ def validate_config(settings: Settings) -> bool:
     return True
 
 
+def is_port_open(host: str, port: int, is_tcp: bool = True) -> bool:
+    """Checks whether a target port is listening."""
+    if not is_tcp:
+        return True  # UDP is connectionless
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            s.connect((host, port))
+            return True
+    except Exception:
+        return False
+
+
 def main(args: Optional[List[str]] = None) -> int:
     """CLI execution entry point.
 
@@ -135,7 +159,7 @@ def main(args: Optional[List[str]] = None) -> int:
         logger.error("Configuration validation failed.")
         return 1
 
-    # 5. Handle Testcase Loading (--test option)
+    # 5. Handle Testcase Schema Check (--test option)
     if parsed.test:
         logger.info("QualTest v%s JSON Testcase Loader", settings.version)
         try:
@@ -144,7 +168,6 @@ def main(args: Optional[List[str]] = None) -> int:
             logger.error("Failed to load testcase '%s': %s", parsed.test, str(exc))
             return 1
 
-        # Display Testcase Summary
         logger.info("==================================================")
         logger.info("  TESTCASE SUMMARY")
         logger.info("==================================================")
@@ -165,10 +188,71 @@ def main(args: Optional[List[str]] = None) -> int:
                 step.delay,
             )
         logger.info("==================================================")
-        logger.info("Testcase loaded and validated successfully. (Execution omitted in v0.2)")
+        logger.info("Testcase loaded and validated successfully.")
         return 0
 
-    # 6. Handle Network Simulator (--simulator option)
+    # 6. Handle Testcase Execution & Validation (--run option)
+    if parsed.run:
+        logger.info("QualTest v%s Test Execution Engine", settings.version)
+        try:
+            testcase = load_testcase(parsed.run)
+        except TestCaseError as exc:
+            logger.error("Failed to load testcase '%s': %s", parsed.run, str(exc))
+            return 1
+
+        # Auto-start local simulator if target host is loopback and not currently listening
+        sim_instance: Optional[NetworkSimulator] = None
+        is_tcp = testcase.protocol.upper() == "TCP"
+
+        if testcase.host in ("127.0.0.1", "localhost") and not is_port_open(
+            testcase.host, testcase.port, is_tcp=is_tcp
+        ):
+            logger.info(
+                "Target %s:%d is not active. Auto-starting embedded %s simulator...",
+                testcase.host,
+                testcase.port,
+                testcase.protocol,
+            )
+            sim_instance = NetworkSimulator(
+                protocol=testcase.protocol,
+                host=testcase.host,
+                port=testcase.port,
+                settings=settings,
+            )
+            sim_instance.start()
+            time.sleep(0.2)
+
+        try:
+            summary = validate(testcase)
+        finally:
+            if sim_instance:
+                sim_instance.stop()
+
+        # Display Concise Execution Summary
+        logger.info("==================================================")
+        logger.info("  EXECUTION SUMMARY: %s", summary.testcase_name)
+        logger.info("==================================================")
+        logger.info("Final Status : %s", summary.final_status.value)
+        logger.info("Total Steps  : %d", summary.total_steps)
+        logger.info("Passed Steps : %d", summary.passed_steps)
+        logger.info("Failed Steps : %d", summary.failed_steps)
+        logger.info("Wall Time    : %.2f ms", summary.execution_time_ms)
+        logger.info("--------------------------------------------------")
+        for step_res in summary.step_results:
+            logger.info(
+                "Step #%d [%s] | Sent: '%s' | Expect: '%s' | Actual: '%s' | Latency: %.2fms",
+                step_res.step_number,
+                step_res.status.value,
+                step_res.command_sent,
+                step_res.expected_response,
+                step_res.actual_response,
+                step_res.latency_ms,
+            )
+        logger.info("==================================================")
+
+        return 0 if summary.final_status == ValidationState.PASS else 1
+
+    # 7. Handle Network Simulator (--simulator option)
     if parsed.simulator:
         proto = parsed.simulator.upper()
         sim = NetworkSimulator(protocol=proto, settings=settings)
@@ -192,7 +276,7 @@ def main(args: Optional[List[str]] = None) -> int:
             logger.info("Simulator shutdown complete.")
         return 0
 
-    # 7. Default Startup Sequence Display
+    # 8. Default Startup Sequence Display
     logger.info("==================================================")
     logger.info("  %s v%s Initialization", settings.app_name, settings.version)
     logger.info("==================================================")
@@ -204,7 +288,8 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("Log Level             : %s", log_level or settings.log_level)
     logger.info("--------------------------------------------------")
     logger.info("Framework initialized successfully.")
-    logger.info("Use '--test <path>' to load and validate a JSON testcase.")
+    logger.info("Use '--run <path>' to execute and validate a JSON testcase.")
+    logger.info("Use '--test <path>' to load and validate a JSON testcase schema.")
     logger.info("Use '--simulator tcp|udp' to start the modem network simulator.")
     logger.info("Startup sequence completed.")
 
