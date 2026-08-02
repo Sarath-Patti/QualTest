@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""QualTest v2 CLI Entry Point.
+"""QualTest CLI Entry Point.
 
 Wireless Modem Validation & Test Automation Framework.
 Handles argument parsing, configuration validation, logger initialization,
-and application startup sequence.
+JSON testcase loading and schema validation.
 """
 
 import argparse
@@ -11,11 +11,12 @@ import sys
 from typing import List, Optional
 
 from framework.config import Settings, get_settings
-from framework.logger import setup_logger, get_logger
+from framework.logger import get_logger, setup_logger
+from framework.parser import TestCaseError, load_testcase
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
-    """Parses command-line arguments for QualTest v2 runner.
+    """Parses command-line arguments for QualTest runner.
 
     Args:
         args: List of argument strings to parse. Defaults to sys.argv[1:].
@@ -25,7 +26,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         prog="qualtest",
-        description="QualTest v2: Wireless Modem Validation & Test Automation Framework",
+        description="QualTest: Wireless Modem Validation & Test Automation Framework",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -34,6 +35,14 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         "--version",
         action="store_true",
         help="Display framework version and exit",
+    )
+
+    parser.add_argument(
+        "-t",
+        "--test",
+        type=str,
+        default=None,
+        help="Path to JSON testcase file to load and validate",
     )
 
     parser.add_argument(
@@ -78,7 +87,6 @@ def validate_config(settings: Settings) -> bool:
     Returns:
         bool: True if configuration is valid.
     """
-    # Ensure default directories exist
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
     settings.testcases_dir.mkdir(parents=True, exist_ok=True)
@@ -116,7 +124,40 @@ def main(args: Optional[List[str]] = None) -> int:
         logger.error("Configuration validation failed.")
         return 1
 
-    # 5. Startup Sequence Display
+    # 5. Handle Testcase Loading (--test option)
+    if parsed.test:
+        logger.info("QualTest v%s JSON Testcase Loader", settings.version)
+        try:
+            testcase = load_testcase(parsed.test)
+        except TestCaseError as exc:
+            logger.error("Failed to load testcase '%s': %s", parsed.test, str(exc))
+            return 1
+
+        # Display Testcase Summary
+        logger.info("==================================================")
+        logger.info("  TESTCASE SUMMARY")
+        logger.info("==================================================")
+        logger.info("Name         : %s", testcase.name)
+        logger.info("Description  : %s", testcase.description)
+        logger.info("Protocol     : %s", testcase.protocol)
+        logger.info("Target       : %s:%d", testcase.host, testcase.port)
+        logger.info("Timeout      : %.1f seconds", testcase.timeout)
+        logger.info("Retry Limit  : %d", testcase.retry)
+        logger.info("Total Steps  : %d", testcase.step_count)
+        logger.info("--------------------------------------------------")
+        for idx, step in enumerate(testcase.steps, start=1):
+            logger.info(
+                "Step #%d     : Send '%s' | Expect '%s' | Delay: %.2fs",
+                idx,
+                step.send,
+                step.expect,
+                step.delay,
+            )
+        logger.info("==================================================")
+        logger.info("Testcase loaded and validated successfully. (Execution omitted in v0.2)")
+        return 0
+
+    # 6. Default Startup Sequence Display
     logger.info("==================================================")
     logger.info("  %s v%s Initialization", settings.app_name, settings.version)
     logger.info("==================================================")
@@ -127,9 +168,9 @@ def main(args: Optional[List[str]] = None) -> int:
     logger.info("Testcases Directory   : %s", settings.testcases_dir)
     logger.info("Log Level             : %s", log_level or settings.log_level)
     logger.info("--------------------------------------------------")
-    logger.info("Framework v0.1 Project Foundation initialized.")
-    logger.info("Note: Test execution logic is not implemented in v0.1.")
-    logger.info("Startup sequence completed successfully.")
+    logger.info("Framework initialized successfully.")
+    logger.info("Use '--test <path>' to load and validate a JSON testcase.")
+    logger.info("Startup sequence completed.")
 
     return 0
 

@@ -1,0 +1,21 @@
+{
+  "name": "Packet Loss & Retry Test",
+  "description": "Simulates packet loss resilience over UDP data channel with configured retry attempts.",
+  "protocol": "UDP",
+  "host": "127.0.0.1",
+  "port": 8081,
+  "timeout": 4.0,
+  "retry": 5,
+  "steps": [
+    {
+      "send": "DATA_FRAME_01",
+      "expect": "ACK_FRAME_01",
+      "delay": 0.2
+    },
+    {
+      "send": "DATA_FRAME_02",
+      "expect": "ACK_FRAME_02",
+      "delay": 0.2
+    }
+  ]
+}

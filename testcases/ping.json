@@ -1,0 +1,21 @@
+{
+  "name": "UDP Echo Ping Test",
+  "description": "Validates UDP echo socket datagram transmission and response packet receipt.",
+  "protocol": "UDP",
+  "host": "127.0.0.1",
+  "port": 8081,
+  "timeout": 3.0,
+  "retry": 3,
+  "steps": [
+    {
+      "send": "PING_REQ_001",
+      "expect": "PING_RESP_001",
+      "delay": 0.1
+    },
+    {
+      "send": "PING_REQ_002",
+      "expect": "PING_RESP_002",
+      "delay": 0.1
+    }
+  ]
+}

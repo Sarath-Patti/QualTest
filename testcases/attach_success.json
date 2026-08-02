@@ -1,0 +1,26 @@
+{
+  "name": "Attach Success Test",
+  "description": "Validates successful network attach and packet service registration sequence via AT commands over TCP.",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 5.0,
+  "retry": 3,
+  "steps": [
+    {
+      "send": "AT+CFUN=1",
+      "expect": "OK",
+      "delay": 0.5
+    },
+    {
+      "send": "AT+CGATT=1",
+      "expect": "OK",
+      "delay": 1.0
+    },
+    {
+      "send": "AT+CGATT?",
+      "expect": "+CGATT: 1",
+      "delay": 0.2
+    }
+  ]
+}

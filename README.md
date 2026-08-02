@@ -1,112 +1,120 @@
-# QualTest v2
+# QualTest
 
 **Wireless Modem Validation & Test Automation Framework**
 
-QualTest v2 is a modular, high-performance test automation framework designed for validating wireless modem hardware, firmware, and protocol stack implementations.
+QualTest is a modular, high-performance test automation framework designed for validating wireless modem hardware, firmware, and protocol stack implementations.
 
 ---
 
-## Current Milestone: v0.1 – Project Foundation
+## Current Milestone: v0.2 – JSON Test Runner
 
-The goal of milestone **v0.1** is to establish a clean, production-quality architectural foundation supporting future development of the automation framework.
+The goal of milestone **v0.2** is to introduce a robust, extensible test case loading system capable of reading, validating, and representing test cases from JSON files without performing network execution.
 
-### Features Implemented in v0.1:
-- Centralized immutable configuration system supporting environment variables (`framework.config.settings`).
-- Thread-safe singleton logging subsystem with console and rotating file output (`framework.logger.logger`).
-- CLI entry point (`run.py`) for configuration validation, logging setup, and environment verification.
-- Complete directory structure and clean public interface definitions for future framework modules.
+### Features Implemented in v0.2:
+- **Parser API**: Public entry point `load_testcase(path)` exposing clean loading interface.
+- **Data Models**: Immutable dataclass representations (`TestCase`, `TestStep`).
+- **Schema Validation**: Strict validation for required fields, supported protocols (`TCP`, `UDP`), port bounds (`1-65535`), timeout (`> 0`), retry (`>= 0`), and non-empty steps.
+- **Custom Exception Hierarchy**: Framework exceptions (`TestCaseError`, `MissingTestCaseError`, `JSONParseError`, `InvalidSchemaError`, `InvalidProtocolError`, `InvalidConfigurationError`).
+- **CLI Integration**: Extended `run.py` to support `--test <path>` for testcase loading, validation, and summary display.
+- **Sample Testcases**: Configuration definitions included in `testcases/` (`attach_success.json`, `detach.json`, `ping.json`, `timeout.json`, `packet_loss.json`).
 
 ---
 
-## Architecture Diagram
+## Parser Architecture
 
 ```
                              +-----------------------+
-                             |        run.py         |
-                             |   (CLI Entry Point)   |
+                             |   framework.parser    |
+                             |    (load_testcase)    |
+                             +-----------+-----------+
+                                         |
+                                         v
+                             +-----------------------+
+                             |      JSONLoader       |
+                             | (json_loader.py)      |
                              +-----------+-----------+
                                          |
                        +-----------------+-----------------+
                        |                                   |
            +-----------v-----------+           +-----------v-----------+
-           |   framework.config    |           |   framework.logger    |
-           |      (Settings)       |           |   (FrameworkLogger)   |
-           +-----------+-----------+           +-----------+-----------+
-                       |                                   |
-       +---------------+-----------------------------------+---------------+
-       |               |               |               |               |
-+------v------+ +------v------+ +------v------+ +------v------+ +------v------+
-|  executor   | |  scheduler  | |  validator  | |  simulator  | |   parser    |
-| (Interface) | | (Interface) | | (Interface) | | (Interface) | | (Interface) |
-+-------------+ +-------------+ +-------------+ +-------------+ +-------------+
-       |               |               |               |               |
-+------v------+ +------v------+ +---------------------------------------------+
-|  reporter   | |    utils    | |               network                       |
-| (Interface) | |  (Helpers)  | |        (tcp / udp Interfaces)               |
-+-------------+ +-------------+ +---------------------------------------------+
+           |   Schema Validation   |           |  Exception Hierarchy  |
+           | (Protocols, Bounds)   |           |    (exceptions.py)    |
+           +-----------+-----------+           +-----------------------+
+                       |
+                       v
+           +-----------------------+
+           |     TestCase Model    |
+           |      (models.py)      |
+           +-----------------------+
 ```
 
 ---
 
-## Directory Structure
+## JSON Testcase Specification & Supported Fields
 
-```
-QualTest-v2/
-│
-├── framework/
-│   ├── executor/        # Test suite execution interface
-│   ├── scheduler/       # Test job scheduling & queue interface
-│   ├── validator/       # Response validation & rule checking interface
-│   ├── simulator/       # Wireless modem emulation interface
-│   ├── logger/          # Singleton thread-safe logging subsystem
-│   ├── parser/          # Log and configuration parsing interface
-│   ├── reporter/        # Execution report generation interface
-│   ├── config/          # Centralized configuration & settings
-│   └── utils/           # Helper utilities
-│
-├── network/             # Modem network communication protocols
-│   ├── tcp/             # TCP socket client interface
-│   └── udp/             # UDP datagram client interface
-│
-├── testcases/           # Test case definitions directory
-├── logs/                # Execution logs directory
-├── reports/             # Generated test reports directory
-├── scripts/             # Utility and automation scripts
-├── docs/                # Project documentation
-├── tests/               # Unit and integration test suites
-│
-├── run.py               # CLI entry point script
-├── requirements.txt     # Dependency specifications
-├── README.md            # Framework documentation
-├── VERSION              # Version metadata
-├── LICENSE              # License metadata
-└── .gitignore           # Git ignore rules
+Testcases are formatted as JSON files containing top-level parameters and an ordered array of execution steps.
+
+### Top-Level Fields
+
+| Field | Type | Required | Description / Constraints |
+| :--- | :--- | :--- | :--- |
+| `name` | String | Yes | Name of the testcase (non-empty). |
+| `description` | String | Yes | Summary of the test objective. |
+| `protocol` | String | Yes | Supported network protocol: `"TCP"` or `"UDP"`. |
+| `host` | String | Yes | Target host IP address or hostname. |
+| `port` | Integer | Yes | Target port number (range: `1` to `65535`). |
+| `timeout` | Float/Int | Yes | Step/Execution timeout in seconds (`> 0`). |
+| `retry` | Integer | Yes | Number of retry attempts on failure (`>= 0`). |
+| `steps` | Array | Yes | Non-empty array of test step objects. |
+
+### Step Object Fields
+
+| Field | Type | Required | Description / Constraints |
+| :--- | :--- | :--- | :--- |
+| `send` | String | Yes | Command or data payload string to send. |
+| `expect` | String | Yes | Expected response string from target. |
+| `delay` | Float/Int | No | Optional delay in seconds before step execution (default: `0.0`, must be `>= 0`). |
+
+### Example Testcase (`attach_success.json`)
+
+```json
+{
+  "name": "Attach Success Test",
+  "description": "Validates successful network attach sequence via AT commands over TCP.",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 5.0,
+  "retry": 3,
+  "steps": [
+    {
+      "send": "AT+CFUN=1",
+      "expect": "OK",
+      "delay": 0.5
+    },
+    {
+      "send": "AT+CGATT=1",
+      "expect": "OK",
+      "delay": 1.0
+    }
+  ]
+}
 ```
 
 ---
 
-## Getting Started
+## Getting Started & Usage
 
-### Prerequisites
-- **Python 3.10+**
+### Inspect & Validate a Testcase
+Run `run.py` with the `--test` (or `-t`) flag:
 
-### Environment Configuration
-The configuration system supports environment variable overrides:
-
-| Variable Name | Description | Default |
-| :--- | :--- | :--- |
-| `QUALTEST_ENV` | Operating environment | `development` |
-| `QUALTEST_LOG_LEVEL` | Application logging level | `INFO` |
-| `QUALTEST_LOGS_DIR` | Directory path for output logs | `<ROOT>/logs` |
-| `QUALTEST_REPORTS_DIR` | Directory path for output reports | `<ROOT>/reports` |
-| `QUALTEST_TESTCASES_DIR` | Directory path for testcase files | `<ROOT>/testcases` |
+```bash
+python run.py --test testcases/attach_success.json
+```
 
 ---
 
 ## Development Roadmap
 
 - [x] **v0.1 – Project Foundation**: Directory structure, configuration system, logging subsystem, CLI entry point, public module interfaces.
-- [ ] **v0.2 – Serial & Socket Protocol Stack**: Implementation of TCP/UDP networking and AT command framing.
-- [ ] **v0.3 – Modem Simulator**: Simulated AT command engine and RF state machine implementation.
-- [ ] **v0.4 – Test Engine & Parser**: Execution engine, testcase parser, and validation engine.
-- [ ] **v0.5 – Reporting & CI Integration**: HTML/JUnit reporter, parallel scheduler, and CI pipeline support.
+- [x] **v0.2 – JSON Test Runner**: JSON loader, schema validation, exception hierarchy, data models, sample testcases, CLI integration.

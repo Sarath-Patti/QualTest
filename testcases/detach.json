@@ -1,0 +1,21 @@
+{
+  "name": "Detach Test",
+  "description": "Validates network detach sequence and modem deactivation.",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 5.0,
+  "retry": 2,
+  "steps": [
+    {
+      "send": "AT+CGATT=0",
+      "expect": "OK",
+      "delay": 0.5
+    },
+    {
+      "send": "AT+CFUN=0",
+      "expect": "OK",
+      "delay": 0.5
+    }
+  ]
+}

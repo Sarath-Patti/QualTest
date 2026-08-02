@@ -1,0 +1,16 @@
+{
+  "name": "Timeout Simulation Test",
+  "description": "Simulates a timeout scenario where the modem target fails to respond within the expected threshold.",
+  "protocol": "TCP",
+  "host": "127.0.0.1",
+  "port": 8080,
+  "timeout": 2.0,
+  "retry": 1,
+  "steps": [
+    {
+      "send": "AT+SLOWCMD",
+      "expect": "+SLOWCMD: OK",
+      "delay": 1.0
+    }
+  ]
+}
